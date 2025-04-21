@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,37 @@
 
 locals {
   glb_create   = var.phpipam_exposure == "EXTERNAL"
-  iap_sa_email = try(module.project.service_accounts.robots["iap"].email, "")
+  iap_sa_email = try(module.project.service_agents.iap.email, "")
 }
 
 # Reserved static IP for the Load Balancer
 module "addresses" {
-  source           = "../../../modules/net-address"
-  count            = local.glb_create ? 1 : 0
-  project_id       = var.project_id
-  global_addresses = ["phpipam"]
+  source     = "../../../modules/net-address"
+  count      = local.glb_create ? 1 : 0
+  project_id = var.project_id
+  global_addresses = {
+    phpipam = {}
+  }
+}
+
+module "glb-redirect" {
+  source     = "../../../modules/net-lb-app-ext"
+  count      = local.glb_create ? 1 : 0
+  project_id = module.project.project_id
+  name       = "phpipam-glb-redirect"
+  forwarding_rules_config = {
+    "" = {
+      address = module.addresses[0].global_addresses["phpipam"].address
+    }
+  }
+  health_check_configs = {}
+  urlmap_config = {
+    description = "URL redirect for phpipam glb."
+    default_url_redirect = {
+      https         = true
+      response_code = "MOVED_PERMANENTLY_DEFAULT"
+    }
+  }
 }
 
 # Global L7 HTTPS Load Balancer in front of Cloud Run
@@ -33,8 +55,12 @@ module "glb" {
   count      = local.glb_create ? 1 : 0
   project_id = module.project.project_id
   name       = "phpipam-glb"
-  address    = module.addresses.0.global_addresses["phpipam"].address
-  protocol   = "HTTPS"
+  forwarding_rules_config = {
+    "" = {
+      address = module.addresses[0].global_addresses["phpipam"].address
+    }
+  }
+  protocol = "HTTPS"
 
   backend_service_configs = {
     default = {

@@ -51,6 +51,16 @@ variable "iam_bindings_additive" {
   default  = {}
 }
 
+variable "import_job" {
+  description = "Keyring import job attributes."
+  type = object({
+    id               = string
+    import_method    = string
+    protection_level = string
+  })
+  default = null
+}
+
 variable "keyring" {
   description = "Keyring attributes."
   type = object({
@@ -68,6 +78,7 @@ variable "keyring_create" {
 variable "keys" {
   description = "Key names and base attributes. Set attributes to null if not needed."
   type = map(object({
+    destroy_scheduled_duration    = optional(string)
     rotation_period               = optional(string)
     labels                        = optional(map(string))
     purpose                       = optional(string, "ENCRYPT_DECRYPT")
@@ -76,10 +87,10 @@ variable "keys" {
       algorithm        = string
       protection_level = optional(string, "SOFTWARE")
     }))
-
     iam = optional(map(list(string)), {})
     iam_bindings = optional(map(object({
       members = list(string)
+      role    = string
       condition = optional(object({
         expression  = string
         title       = string
@@ -108,6 +119,6 @@ variable "project_id" {
 variable "tag_bindings" {
   description = "Tag bindings for this keyring, in key => tag value id format."
   type        = map(string)
-  default     = {}
   nullable    = false
+  default     = {}
 }

@@ -4,11 +4,13 @@
 
 This blueprint contains all the necessary Terraform modules to build and __publicly__ expose Cloud Run services in a variety of use cases.
 
-The content of this blueprint corresponds to the chapter '_My serverless "Hello, World! - Exploring Cloud Run_' of the [__Serverless Networking Guide__](https://services.google.com/fh/files/misc/serverless_networking_guide.pdf). This guide is an easy to follow introduction to Cloud Run, where a couple of friendly characters will guide you from the basics to more advanced topics with a very practical approach and in record time! The code here complements this learning and allows you to test the scenarios presented and your knowledge.
+The content of this blueprint corresponds to the chapter '_Exploring Cloud Run - My serverless "Hello, World!"_' of the [__Serverless Networking Guide__](https://services.google.com/fh/files/misc/serverless_networking_guide.pdf). This guide is an easy to follow introduction to Cloud Run, where a couple of friendly characters will guide you from the basics to more advanced topics with a very practical approach and in record time! The code here complements this learning and allows you to test the scenarios presented and your knowledge.
 
 If you are interested in following this guide, take a look to the chapters' blueprints:
-* [My serverless "Hello, World! - Exploring Cloud Run](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric/tree/master/blueprints/serverless/cloud-run-explore)
-* [Developing an enterprise application - The corporate environment](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric/tree/master/blueprints/serverless/cloud-run-corporate)
+
+* [Exploring Cloud Run - My serverless "Hello, World!"](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric/tree/master/blueprints/serverless/cloud-run-explore)
+* [The corporate environment - Developing an enterprise application](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric/tree/master/blueprints/serverless/cloud-run-corporate)
+* [Microservices architectures - Developing Microservices applications](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric/tree/master/blueprints/serverless/cloud-run-microservices)
 
 ## Architecture
 
@@ -19,7 +21,7 @@ The following diagram depicts the main components that this blueprint will set u
 The following products or features are used to fulfill the different use cases covered in this blueprint (to learn more about them click on the hyperlinks):
 
 * [Cloud Run](https://cloud.google.com/run/docs/overview/what-is-cloud-run) -  Cloud Run is a managed compute platform that lets you run containers directly on top of Google's scalable infrastructure.
-* [Cloud Run Ingress Settings](https://cloud.google.com/run/docs/securing/ingress) - feature that restricts network access to your Cloud Run service. At a network level, by default, any resource on the Internet can reach your Cloud Run service on its run.app URL or at a custom domain set up in Cloud Run. You can change this default by specifying a different setting for its ingress. All ingress paths, including the default run.app URL, are subject to your ingress setting. Ingress is set at the service level. The following settings are available: 
+* [Cloud Run Ingress Settings](https://cloud.google.com/run/docs/securing/ingress) - feature that restricts network access to your Cloud Run service. At a network level, by default, any resource on the Internet can reach your Cloud Run service on its run.app URL or at a custom domain set up in Cloud Run. You can change this default by specifying a different setting for its ingress. All ingress paths, including the default run.app URL, are subject to your ingress setting. Ingress is set at the service level. The following settings are available:
   * __Internal__: Allows requests from VPC networks that are in the same project or VPC Service Controls perimeter as your Cloud Run service.
   * __Internal and Cloud Load Balancing__: Allows requests from resources allowed by the more restrictive Internal setting and an External HTTP(S) load balancer.
   * __All__ (default):  Allows all requests, including requests directly from the Internet to the default run.app URL.
@@ -37,21 +39,27 @@ You will need an existing [project](https://cloud.google.com/resource-manager/do
 ### General steps
 
 1. Clone the repo to your local machine or Cloud Shell:
+
 ```bash
 git clone https://github.com/GoogleCloudPlatform/cloud-foundation-fabric
 ```
 
 2. Change to the directory of the blueprint:
+
 ```bash
 cd cloud-foundation-fabric/blueprints/serverless/cloud-run-explore
 ```
+
 You should see this README and some terraform files.
 
-3. To deploy a specific use case, you will need to create a file in this directory called `terraform.tfvars` and follow the corresponding instructions to set variables. Sometimes values that are meant to be substituted will be shown inside brackets but you need to omit these brackets. E.g.:
+3. To deploy a specific use case, you will need to create a file in this directory called `terraform.tfvars` and follow the corresponding instructions to set variables. Values that are meant to be substituted will be shown inside brackets but you need to omit these brackets. E.g.:
+
 ```tfvars
 project_id = "[your-project_id]"
 ```
+
 may become
+
 ```tfvars
 project_id = "spiritual-hour-331417"
 ```
@@ -59,13 +67,14 @@ project_id = "spiritual-hour-331417"
 Although each use case is somehow built around the previous one they are self-contained so you can deploy any of them at will.
 
 4. The usual terraform commands will do the work:
+
 ```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-The resource creation will take a few minutes but when it’s complete, you should see an output stating the command completed successfully with a list of the created resources, and some output variables with information to access your service.
+It will take a few minutes. When complete, you should see an output stating the command completed successfully, a list of the created resources, and some output variables with information to access your services.
 
 __Congratulations!__ You have successfully deployed the use case you chose based on the variables configuration.
 
@@ -76,10 +85,13 @@ This is the simplest case, the "Hello World" for Cloud Run. A Cloud Run service 
 <p align="center"> <img src="images/use-case-1.png" width="700"> </p>
 
 In this case the only variable that you need to set in `terraform.tfvars` is the project ID:
+
 ```tfvars
 project_id = "[your-project-id]"
 ```
+
 Alternatively you can pass this value on the command line:
+
 ```bash
 terraform apply -var project_id="[your-project-id]"
 ```
@@ -95,10 +107,12 @@ If you want to use your own custom domain you need a GCLB in front of your Cloud
 <p align="center"> <img src="images/use-case-2.png" width="700"> </p>
 
 The following values will need to be set in `terraform.tfvars`, replacing the custom_domain value with your own domain:
+
 ```tfvars
 project_id    = "[your-project-id]"
 custom_domain = "cloud-run-explore.example.org"
 ```
+
 Since it is an HTTPS connection a Google managed certificate is created, but for it to be provisioned correctly you will need to point to the load balancer IP address with an A DNS record at your registrar: [Use Google-managed SSL certificates | Load Balancing](https://cloud.google.com/load-balancing/docs/ssl-certificates/google-managed-certs#update-dns). The LB IP is shown as a terraform output.
 
 Be aware that in this case the Cloud Run service can also be reached through the default URL. To limit access only through the custom domain see the next use case.
@@ -110,6 +124,7 @@ To block access to the default URL, you can configure Ingress Settings so that I
 <p align="center"> <img src="images/use-case-3.png" width="700"> </p>
 
 You only need to set one more value in the previous `terraform.tfvars` file:
+
 ```tfvars
 project_id       = "[your-project-id]"
 custom_domain    = "cloud-run-explore.example.org"
@@ -125,6 +140,7 @@ To use Cloud Armor to protect the Cloud Run service, you need to create a securi
 <p align="center"> <img src="images/use-case-4.png" width="700"> </p>
 
 The code allows to block a list of IPs and a specific URL path. For example, you may want to block access to a login page to external users. To test its behavior, by default all IPs and the path `"/login.html"` are blocked, but you can override any of these settings with your own values:
+
 ```tfvars
 project_id       = "[your-project-id]"
 custom_domain    = "cloud-run-explore.example.org"
@@ -157,15 +173,18 @@ iap = {
   email   = "user@example.org"
 }
 ```
+
 When visiting it you may be redirected to login with Google. You can use an incognito window to test this behavior.
 
 ## Cleaning up your environment
 
 The easiest way to remove all the deployed resources is to run the following command:
+
 ```bash
 terraform destroy
 ```
-The above command will delete the associated resources so there will be no billable charges made afterwards. IAP Brands, though, can only be created once per project and not deleted. Destroying a Terraform-managed IAP Brand will remove it from state but will not delete it from Google Cloud.
+
+The above command will delete the associated resources so there will be no billable charges afterwards. IAP Brands, though, can only be created once per project and not deleted. Destroying a Terraform-managed IAP Brand will remove it from state but will not delete it from Google Cloud.
 <!-- BEGIN TFDOC -->
 
 ## Variables
@@ -214,5 +233,5 @@ module "test" {
   }
 }
 
-# tftest modules=4 resources=19
+# tftest modules=4 resources=22
 ```

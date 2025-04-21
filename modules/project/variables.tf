@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2025 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,52 +60,35 @@ variable "default_service_account" {
   }
 }
 
+variable "deletion_policy" {
+  description = "Deletion policy setting for this project."
+  default     = "DELETE"
+  type        = string
+  nullable    = false
+  validation {
+    condition     = contains(["ABANDON", "DELETE", "PREVENT"], var.deletion_policy)
+    error_message = "deletion_policy must be one of 'ABANDON', 'DELETE', 'PREVENT'."
+  }
+}
+
 variable "descriptive_name" {
   description = "Name of the project name. Used for project name instead of `name` variable."
   type        = string
   default     = null
 }
 
-variable "group_iam" {
-  description = "Authoritative IAM binding for organization groups, in {GROUP_EMAIL => [ROLES]} format. Group emails need to be static. Can be used in combination with the `iam` variable."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam" {
-  description = "Authoritative IAM bindings in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_bindings" {
-  description = "Authoritative IAM bindings in {KEY => {role = ROLE, members = [], condition = {}}}. Keys are arbitrary."
-  type = map(object({
-    members = list(string)
-    role    = string
-    condition = optional(object({
-      expression  = string
-      title       = string
-      description = optional(string)
-    }))
-  }))
-  nullable = false
-  default  = {}
-}
-
-variable "iam_bindings_additive" {
-  description = "Individual additive IAM bindings. Keys are arbitrary."
-  type = map(object({
-    member = string
-    role   = string
-    condition = optional(object({
-      expression  = string
-      title       = string
-      description = optional(string)
-    }))
-  }))
+variable "factories_config" {
+  description = "Paths to data files and folders that enable factory functionality."
+  type = object({
+    custom_roles  = optional(string)
+    observability = optional(string)
+    org_policies  = optional(string)
+    quotas        = optional(string)
+    context = optional(object({
+      notification_channels = optional(map(string), {})
+      org_policies          = optional(map(map(string)), {})
+    }), {})
+  })
   nullable = false
   default  = {}
 }
@@ -121,66 +104,6 @@ variable "lien_reason" {
   description = "If non-empty, creates a project lien with this description."
   type        = string
   default     = null
-}
-
-variable "logging_data_access" {
-  description = "Control activation of data access logs. Format is service => { log type => [exempted members]}. The special 'allServices' key denotes configuration for all services."
-  type        = map(map(list(string)))
-  nullable    = false
-  default     = {}
-  validation {
-    condition = alltrue(flatten([
-      for k, v in var.logging_data_access : [
-        for kk, vv in v : contains(["DATA_READ", "DATA_WRITE", "ADMIN_READ"], kk)
-      ]
-    ]))
-    error_message = "Log type keys for each service can only be one of 'DATA_READ', 'DATA_WRITE', 'ADMIN_READ'."
-  }
-}
-
-variable "logging_exclusions" {
-  description = "Logging exclusions for this project in the form {NAME -> FILTER}."
-  type        = map(string)
-  default     = {}
-  nullable    = false
-}
-
-variable "logging_sinks" {
-  description = "Logging sinks to create for this project."
-  type = map(object({
-    bq_partitioned_table = optional(bool)
-    description          = optional(string)
-    destination          = string
-    disabled             = optional(bool, false)
-    exclusions           = optional(map(string), {})
-    filter               = string
-    iam                  = optional(bool, true)
-    type                 = string
-    unique_writer        = optional(bool)
-  }))
-  default  = {}
-  nullable = false
-  validation {
-    condition = alltrue([
-      for k, v in var.logging_sinks :
-      contains(["bigquery", "logging", "pubsub", "storage"], v.type)
-    ])
-    error_message = "Type must be one of 'bigquery', 'logging', 'pubsub', 'storage'."
-  }
-  validation {
-    condition = alltrue([
-      for k, v in var.logging_sinks :
-      v.bq_partitioned_table != true || v.type == "bigquery"
-    ])
-    error_message = "Can only set bq_partitioned_table when type is `bigquery`."
-  }
-}
-
-variable "metric_scopes" {
-  description = "List of projects that will act as metric scopes for this project."
-  type        = list(string)
-  default     = []
-  nullable    = false
 }
 
 variable "name" {
@@ -209,16 +132,11 @@ variable "org_policies" {
         location    = optional(string)
         title       = optional(string)
       }), {})
+      parameters = optional(string)
     })), [])
   }))
   default  = {}
   nullable = false
-}
-
-variable "org_policies_data_path" {
-  description = "Path containing org policies in YAML format."
-  type        = string
-  default     = null
 }
 
 variable "parent" {
@@ -241,10 +159,34 @@ variable "prefix" {
   }
 }
 
-variable "project_create" {
-  description = "Create project. When set to false, uses a data source to reference existing project."
-  type        = bool
-  default     = true
+variable "project_reuse" {
+  description = "Reuse existing project if not null. If name and number are not passed in, a data source is used."
+  type = object({
+    use_data_source = optional(bool, true)
+    project_attributes = optional(object({
+      name             = string
+      number           = number
+      services_enabled = optional(list(string), [])
+    }))
+  })
+  default = null
+  validation {
+    condition = (
+      try(var.project_reuse.use_data_source, null) != false ||
+      try(var.project_reuse.project_attributes, null) != null
+    )
+    error_message = "Reuse datasource can be disabled only if project attributes are set."
+  }
+}
+
+variable "service_agents_config" {
+  description = "Automatic service agent configuration options."
+  type = object({
+    create_primary_agents = optional(bool, true)
+    grant_default_roles   = optional(bool, true)
+  })
+  default  = {}
+  nullable = false
 }
 
 variable "service_config" {
@@ -260,23 +202,10 @@ variable "service_config" {
 }
 
 variable "service_encryption_key_ids" {
-  description = "Cloud KMS encryption key in {SERVICE => [KEY_URL]} format."
+  description = "Service Agents to be granted encryption/decryption permissions over Cloud KMS encryption keys. Format {SERVICE_AGENT => [KEY_ID]}."
   type        = map(list(string))
   default     = {}
-}
-
-# accessPolicies/ACCESS_POLICY_NAME/servicePerimeters/PERIMETER_NAME
-variable "service_perimeter_bridges" {
-  description = "Name of VPC-SC Bridge perimeters to add project into. See comment in the variables file for format."
-  type        = list(string)
-  default     = null
-}
-
-# accessPolicies/ACCESS_POLICY_NAME/servicePerimeters/PERIMETER_NAME
-variable "service_perimeter_standard" {
-  description = "Name of VPC-SC Standard perimeter to add project into. See comment in the variables file for format."
-  type        = string
-  default     = null
+  nullable    = false
 }
 
 variable "services" {
@@ -298,9 +227,12 @@ variable "shared_vpc_service_config" {
   description = "Configures this project as a Shared VPC service project (mutually exclusive with shared_vpc_host_config)."
   # the list of valid service identities is in service-agents.yaml
   type = object({
-    host_project         = string
-    service_identity_iam = optional(map(list(string)), {})
-    service_iam_grants   = optional(list(string), [])
+    host_project             = string
+    network_users            = optional(list(string), [])
+    service_agent_iam        = optional(map(list(string)), {})
+    service_agent_subnet_iam = optional(map(list(string)), {})
+    service_iam_grants       = optional(list(string), [])
+    network_subnet_users     = optional(map(list(string)), {})
   })
   default = {
     host_project = null
@@ -309,21 +241,43 @@ variable "shared_vpc_service_config" {
   validation {
     condition = var.shared_vpc_service_config.host_project != null || (
       var.shared_vpc_service_config.host_project == null &&
+      length(var.shared_vpc_service_config.network_users) == 0 &&
       length(var.shared_vpc_service_config.service_iam_grants) == 0 &&
-      length(var.shared_vpc_service_config.service_iam_grants) == 0
+      length(var.shared_vpc_service_config.service_agent_iam) == 0 &&
+      length(var.shared_vpc_service_config.service_agent_subnet_iam) == 0 &&
+      length(var.shared_vpc_service_config.network_subnet_users) == 0
     )
-    error_message = "You need to provide host_project when providing service_identity_iam or service_iam_grants"
+    error_message = "You need to provide host_project when providing Shared VPC host and subnet IAM permissions."
   }
 }
 
 variable "skip_delete" {
-  description = "Allows the underlying resources to be destroyed without destroying the project itself."
+  description = "Deprecated. Use deletion_policy."
   type        = bool
-  default     = false
+  default     = null
+  # Validation fails on existing infrastructure. Implemented as a
+  # precondition in main.tf
+  # validation {
+  #   condition     = var.skip_delete != null
+  #   error_message = "skip_delete is deprecated. Use deletion_policy."
+  # }
 }
 
-variable "tag_bindings" {
-  description = "Tag bindings for this project, in key => tag value id format."
-  type        = map(string)
-  default     = null
+variable "universe" {
+  description = "GCP universe where to deploy the project. The prefix will be prepended to the project id."
+  type = object({
+    prefix               = string
+    unavailable_services = optional(list(string), [])
+  })
+  default = null
+}
+
+variable "vpc_sc" {
+  description = "VPC-SC configuration for the project, use when `ignore_changes` for resources is set in the VPC-SC module."
+  type = object({
+    perimeter_name    = string
+    perimeter_bridges = optional(list(string), [])
+    is_dry_run        = optional(bool, false)
+  })
+  default = null
 }

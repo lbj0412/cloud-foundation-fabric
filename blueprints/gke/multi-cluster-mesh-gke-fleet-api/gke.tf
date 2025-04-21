@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,25 +22,26 @@ module "clusters" {
   project_id = module.fleet_project.project_id
   name       = each.key
   location   = var.region
+  access_config = {
+    ip_access = {
+      authorized_ranges = merge(
+        { mgmt : var.mgmt_subnet_cidr_block },
+        {
+          for key, config in var.clusters_config :
+          "pods-${key}" => config.pods_cidr_block if key != each.key
+        }
+      )
+    }
+  }
   vpc_config = {
     network    = module.svpc.self_link
     subnetwork = module.svpc.subnet_self_links["${var.region}/subnet-${each.key}"]
-    master_authorized_ranges = merge({
-      mgmt : var.mgmt_subnet_cidr_block
-      },
-      { for key, config in var.clusters_config :
-        "pods-${key}" => config.pods_cidr_block if key != each.key
-    })
-    master_ipv4_cidr_block = each.value.master_cidr_block
-  }
-  private_cluster_config = {
-    enable_private_endpoint = true
-    master_global_access    = true
   }
   release_channel = "REGULAR"
   labels = {
     mesh_id = "proj-${module.fleet_project.number}"
   }
+  deletion_protection = var.deletion_protection
 }
 
 module "cluster_nodepools" {
@@ -62,12 +63,7 @@ module "hub" {
   project_id = module.fleet_project.project_id
   clusters   = { for k, v in module.clusters : k => v.id }
   features = {
-    appdevexperience             = false
-    configmanagement             = false
-    identityservice              = false
-    multiclusteringress          = null
-    servicemesh                  = true
-    multiclusterservicediscovery = false
+    servicemesh = true
   }
   depends_on = [
     module.fleet_project

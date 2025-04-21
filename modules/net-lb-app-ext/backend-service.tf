@@ -60,6 +60,7 @@ resource "google_compute_backend_service" "default" {
   health_checks = length(each.value.health_checks) == 0 ? null : [
     for k in each.value.health_checks : lookup(local.hc_ids, k, k)
   ]
+  locality_lb_policy    = (each.value.locality_lb_policies == null ? each.value.locality_lb_policy : null)
   load_balancing_scheme = var.use_classic_version ? "EXTERNAL" : "EXTERNAL_MANAGED"
   port_name = (
     each.value.port_name == null
@@ -199,6 +200,7 @@ resource "google_compute_backend_service" "default" {
   dynamic "iap" {
     for_each = each.value.iap_config == null ? [] : [each.value.iap_config]
     content {
+      enabled                     = true
       oauth2_client_id            = iap.value.oauth2_client_id
       oauth2_client_secret        = iap.value.oauth2_client_secret
       oauth2_client_secret_sha256 = iap.value.oauth2_client_secret_sha256
@@ -210,6 +212,25 @@ resource "google_compute_backend_service" "default" {
     content {
       enable      = true
       sample_rate = each.value.log_sample_rate
+    }
+  }
+
+  dynamic "locality_lb_policies" {
+    for_each = (each.value.locality_lb_policies == null ? [] : each.value.locality_lb_policies)
+    content {
+      dynamic "policy" {
+        for_each = (locality_lb_policies.value.policy != null ? locality_lb_policies.value.policy : {})
+        content {
+          name = policy.value
+        }
+      }
+      dynamic "custom_policy" {
+        for_each = (locality_lb_policies.value.custom_policy != null ? locality_lb_policies.value.custom_policy : {})
+        content {
+          name = custom_policy.value
+          data = custom_policy.value.data
+        }
+      }
     }
   }
 
@@ -257,6 +278,17 @@ resource "google_compute_backend_service" "default" {
     content {
       client_tls_policy = ss.value.client_tls_policy
       subject_alt_names = ss.value.subject_alt_names
+
+      dynamic "aws_v4_authentication" {
+        for_each = ss.value.aws_v4_authentication == null ? [] : [""]
+
+        content {
+          access_key_id      = ss.value.aws_v4_authentication.access_key_id
+          access_key         = ss.value.aws_v4_authentication.access_key
+          access_key_version = ss.value.aws_v4_authentication.access_key_version
+          origin_region      = ss.value.aws_v4_authentication.origin_region
+        }
+      }
     }
   }
 }

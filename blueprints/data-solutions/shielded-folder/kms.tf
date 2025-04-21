@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,14 +60,16 @@ module "sec-project" {
   name            = var.project_config.project_ids["sec-core"]
   parent          = module.folder.id
   billing_account = var.project_config.billing_account_id
-  project_create = (
+  project_reuse = (
     var.project_config.billing_account_id != null && var.enable_features.encryption
+    ? null
+    : {}
   )
   prefix = (
     var.project_config.billing_account_id == null ? null : var.prefix
   )
-  group_iam = {
-    (local.groups.workload-security) = [
+  iam_by_principals = {
+    "group:${local.groups.workload-security}" = [
       "roles/editor"
     ]
   }

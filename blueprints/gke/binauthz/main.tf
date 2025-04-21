@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,9 @@ module "project" {
     ? var.project_create.parent
     : null
   )
-  project_create = var.project_create != null
-  prefix         = var.project_create == null ? null : var.prefix
-  name           = var.project_id
+  project_reuse = var.project_create != null ? null : {}
+  prefix        = var.project_create == null ? null : var.prefix
+  name          = var.project_id
   services = [
     "artifactregistry.googleapis.com",
     "binaryauthorization.googleapis.com",
@@ -92,10 +92,7 @@ module "cluster" {
     network                = module.vpc.self_link
     subnetwork             = module.vpc.subnet_self_links["${var.region}/subnet"]
   }
-  private_cluster_config = {
-    enable_private_endpoint = false
-    master_global_access    = false
-  }
+  deletion_protection = var.deletion_protection
 }
 
 module "cluster_nodepool" {
@@ -169,6 +166,7 @@ module "docker_artifact_registry" {
   project_id = module.project.project_id
   location   = var.region
   name       = "${var.prefix}-registry"
+  format     = { docker = { standard = {} } }
   iam = {
     "roles/artifactregistry.writer" = [module.image_cb_sa.iam_email]
     "roles/artifactregistry.reader" = [module.cluster_nodepool.service_account_iam_email]

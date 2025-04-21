@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,31 +15,27 @@
  */
 
 locals {
-  _output_kms_keys = concat(
-    flatten([
-      for location, mod in module.dev-sec-kms : [
-        for name, id in mod.key_ids : {
-          key = "dev-${name}:${location}"
-          id  = id
-        }
-      ]
-    ]),
-    flatten([
-      for location, mod in module.prod-sec-kms : [
-        for name, id in mod.key_ids : {
-          key = "prod-${name}:${location}"
-          id  = id
-        }
-      ]
-    ])
-  )
-  output_kms_keys = { for k in local._output_kms_keys : k.key => k.id }
+  _output_kms_keys = flatten([
+    for k, v in module.kms : [
+      for name, id in v.key_ids : {
+        key = "${name}-${k}"
+        id  = id
+      }
+    ]
+  ])
   tfvars = {
-    kms_keys = local.output_kms_keys
+    certificate_authority_pools = {
+      for k, v in module.cas : k => {
+        ca_ids   = v.ca_ids
+        id       = v.ca_pool_id
+        location = v.ca_pool.location
+      }
+    }
+    kms_keys = {
+      for k in local._output_kms_keys : k.key => k.id
+    }
   }
 }
-
-# generate files for subsequent stages
 
 resource "local_file" "tfvars" {
   for_each        = var.outputs_location == null ? {} : { 1 = 1 }
@@ -54,22 +50,15 @@ resource "google_storage_bucket_object" "tfvars" {
   content = jsonencode(local.tfvars)
 }
 
-# outputs
+output "certificate_authority_pools" {
+  description = "Certificate Authority Service pools and CAs."
+  value       = local.tfvars.certificate_authority_pools
+}
 
 output "kms_keys" {
   description = "KMS key ids."
-  value       = local.output_kms_keys
+  value       = local.tfvars.kms_keys
 }
-
-output "stage_perimeter_projects" {
-  description = "Security project numbers. They can be added to perimeter resources."
-  value = {
-    dev  = ["projects/${module.dev-sec-project.number}"]
-    prod = ["projects/${module.prod-sec-project.number}"]
-  }
-}
-
-# ready to use variable values for subsequent stages
 
 output "tfvars" {
   description = "Terraform variable files for the following stages."

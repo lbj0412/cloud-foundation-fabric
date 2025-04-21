@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ module "project" {
   name            = var.project_id
   parent          = var.root_node
   billing_account = try(var.billing_account, null)
-  project_create  = var.project_create
+  project_reuse   = var.project_create ? null : {}
   services = [
     "bigquery.googleapis.com",
     "cloudasset.googleapis.com",
@@ -36,9 +36,9 @@ module "project" {
     "pubsub.googleapis.com"
   ]
   iam = {
-    "roles/resourcemanager.projectIamAdmin" = ["serviceAccount:${module.project.service_accounts.robots.cloudasset}"]
-    "roles/bigquery.dataEditor"             = ["serviceAccount:${module.project.service_accounts.robots.cloudasset}"]
-    "roles/bigquery.user"                   = ["serviceAccount:${module.project.service_accounts.robots.cloudasset}"]
+    "roles/resourcemanager.projectIamAdmin" = [module.project.service_agents.cloudasset.iam_email]
+    "roles/bigquery.dataEditor"             = [module.project.service_agents.cloudasset.iam_email]
+    "roles/bigquery.user"                   = [module.project.service_agents.cloudasset.iam_email]
   }
 }
 
@@ -94,8 +94,10 @@ module "cf" {
     location = var.region
   }
   bundle_config = {
-    source_dir  = "${path.module}/cf"
-    output_path = var.bundle_path
+    path = "${path.module}/cf"
+    folder_options = {
+      archive_path = var.bundle_path
+    }
   }
   service_account = module.service-account.email
   trigger_config = {
@@ -116,9 +118,10 @@ module "cffile" {
     lifecycle_delete_age_days = null
   }
   bundle_config = {
-    source_dir  = "${path.module}/cffile"
-    output_path = var.bundle_path_cffile
-    excludes    = null
+    path = "${path.module}/cffile"
+    folder_options = {
+      archive_path = var.bundle_path_cffile
+    }
   }
   service_account = module.service-account.email
   trigger_config = {

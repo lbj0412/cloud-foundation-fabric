@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ locals {
       local.groups_iam.data-engineers
     ]
     "roles/composer.ServiceAgentV2Ext" = [
-      "serviceAccount:${module.processing-project.service_accounts.robots.composer}"
+      module.processing-project.service_agents.composer.iam_email
     ]
     "roles/composer.worker" = [
       module.processing-sa-cmp-0.iam_email
@@ -56,7 +56,7 @@ locals {
     ]
     "roles/storage.admin" = [
       module.processing-sa-cmp-0.iam_email,
-      "serviceAccount:${module.processing-project.service_accounts.robots.composer}",
+      module.processing-project.service_agents.composer.iam_email,
       local.groups_iam.data-engineers
     ]
   }
@@ -75,14 +75,14 @@ locals {
     local.use_shared_vpc
     ? var.network_config.subnet_self_link
     : try(
-      module.processing-vpc.0.subnet_self_links["${var.region}/${var.prefix}-processing"],
+      module.processing-vpc[0].subnet_self_links["${var.region}/${var.prefix}-processing"],
       null
     )
   )
   processing_vpc = (
     local.use_shared_vpc
     ? var.network_config.network_self_link
-    : try(module.processing-vpc.0.self_link, null)
+    : try(module.processing-vpc[0].self_link, null)
   )
 }
 
@@ -90,7 +90,7 @@ module "processing-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.billing_account_id != null ? null : {}
   prefix = (
     var.project_config.billing_account_id == null ? null : var.prefix
   )
@@ -105,9 +105,7 @@ module "processing-project" {
   iam_bindings_additive = (
     var.project_config.billing_account_id != null ? {} : local.iam_prc_additive
   )
-  compute_metadata = {
-    enable-oslogin = "false"
-  }
+
   services = [
     "bigquery.googleapis.com",
     "bigqueryreservation.googleapis.com",
@@ -121,21 +119,22 @@ module "processing-project" {
     "datalineage.googleapis.com",
     "dataproc.googleapis.com",
     "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
     "servicenetworking.googleapis.com",
     "serviceusage.googleapis.com",
-    "stackdriver.googleapis.com",
+    "storage-component.googleapis.com",
     "storage.googleapis.com",
-    "storage-component.googleapis.com"
   ]
   service_encryption_key_ids = {
-    composer = [var.service_encryption_keys.composer]
-    compute  = [var.service_encryption_keys.compute]
-    storage  = [var.service_encryption_keys.storage]
+    "composer.googleapis.com" = compact([var.service_encryption_keys.composer])
+    "compute.googleapis.com"  = compact([var.service_encryption_keys.compute])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
   shared_vpc_service_config = var.network_config.host_project == null ? null : {
     attach       = true
     host_project = var.network_config.host_project
-    service_identity_iam = {
+    service_agent_iam = {
       "roles/compute.networkUser" = [
         "cloudservices", "compute", "container-engine", "dataflow", "dataproc"
       ]
@@ -159,6 +158,7 @@ module "processing-cs-0" {
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
   encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 # internal VPC resources
@@ -185,7 +185,7 @@ module "processing-vpc-firewall" {
   source     = "../../../modules/net-vpc-firewall"
   count      = local.use_shared_vpc ? 0 : 1
   project_id = module.processing-project.project_id
-  network    = module.processing-vpc.0.name
+  network    = module.processing-vpc[0].name
   default_rules_config = {
     admin_ranges = ["10.10.0.0/24"]
   }
@@ -197,5 +197,5 @@ module "processing-nat" {
   project_id     = module.processing-project.project_id
   name           = "${var.prefix}-processing"
   region         = var.region
-  router_network = module.processing-vpc.0.name
+  router_network = module.processing-vpc[0].name
 }

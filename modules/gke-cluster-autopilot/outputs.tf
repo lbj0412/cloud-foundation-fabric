@@ -16,7 +16,7 @@
 
 output "ca_certificate" {
   description = "Public certificate of the cluster (base64-encoded)."
-  value       = google_container_cluster.cluster.master_auth.0.cluster_ca_certificate
+  value       = google_container_cluster.cluster.master_auth[0].cluster_ca_certificate
   sensitive   = true
 }
 
@@ -24,6 +24,14 @@ output "cluster" {
   description = "Cluster resource."
   sensitive   = true
   value       = google_container_cluster.cluster
+}
+
+output "dns_endpoint" {
+  description = "Control plane DNS endpoint."
+  value = try(
+    google_container_cluster.cluster.control_plane_endpoints_config[0].dns_endpoint_config[0].endpoint,
+    null
+  )
 }
 
 output "endpoint" {

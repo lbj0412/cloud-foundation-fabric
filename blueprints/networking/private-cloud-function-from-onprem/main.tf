@@ -21,7 +21,7 @@ locals {
 module "project" {
   source          = "../../../modules/project"
   name            = var.project_id
-  project_create  = var.project_create == null ? false : true
+  project_reuse   = var.project_create == null ? {} : null
   billing_account = try(var.project_create.billing_account_id, null)
   parent          = try(var.project_create.parent, null)
   services = [
@@ -179,12 +179,12 @@ module "test-vm" {
 module "function-hello" {
   source           = "../../../modules/cloud-function-v1"
   project_id       = module.project.project_id
+  region           = var.region
   name             = var.name
   bucket_name      = "${var.name}-tf-cf-deploy"
   ingress_settings = "ALLOW_INTERNAL_ONLY"
   bundle_config = {
-    source_dir  = "${path.module}/assets"
-    output_path = "bundle.zip"
+    path = "${path.module}/assets"
   }
   bucket_config = {
     location = var.region

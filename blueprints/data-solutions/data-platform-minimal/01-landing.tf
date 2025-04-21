@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,9 @@ locals {
     "roles/storage.objectViewer" = [
       module.processing-sa-cmp-0.iam_email
     ]
-    "roles/storage.objectAdmin" = [
-      module.processing-sa-0.iam_email
+    "roles/storage.admin" = [
+      module.processing-sa-0.iam_email,
+      local.groups_iam.data-engineers
     ]
   }
   # this only works because the service account module uses a static output
@@ -43,7 +44,7 @@ module "land-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.billing_account_id != null ? null : {}
   prefix = (
     var.project_config.billing_account_id == null ? null : var.prefix
   )
@@ -66,14 +67,15 @@ module "land-project" {
     "cloudresourcemanager.googleapis.com",
     "datalineage.googleapis.com",
     "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
     "serviceusage.googleapis.com",
-    "stackdriver.googleapis.com",
-    "storage.googleapis.com",
     "storage-component.googleapis.com",
+    "storage.googleapis.com",
   ]
   service_encryption_key_ids = {
-    bq      = [var.service_encryption_keys.bq]
-    storage = [var.service_encryption_keys.storage]
+    "bigquery.googleapis.com" = compact([var.service_encryption_keys.bq])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
 }
 
@@ -100,7 +102,7 @@ module "land-cs-0" {
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
   encryption_key = var.service_encryption_keys.storage
-  force_destroy  = var.data_force_destroy
+  force_destroy  = !var.deletion_protection
 }
 
 module "land-bq-0" {

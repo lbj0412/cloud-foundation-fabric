@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ module "project" {
   name            = var.project_id
   parent          = var.root_node
   billing_account = var.billing_account
-  project_create  = var.project_create
+  project_reuse   = var.project_create ? null : {}
   services = [
     "vpcaccess.googleapis.com",
     "compute.googleapis.com",
@@ -117,8 +117,7 @@ module "cf-restarter" {
     location = var.region
   }
   bundle_config = {
-    source_dir  = "${path.module}/function/restarter"
-    output_path = "restarter.zip"
+    path = "${path.module}/function/restarter"
   }
   service_account = module.service-account-restarter.email
 
@@ -145,8 +144,7 @@ module "cf-healthchecker" {
   region      = var.region
   bucket_name = module.cf-restarter.bucket_name
   bundle_config = {
-    source_dir  = "${path.module}/function/healthchecker"
-    output_path = "healthchecker.zip"
+    path = "${path.module}/function/healthchecker"
   }
   service_account = module.service-account-healthchecker.email
   function_config = {
@@ -174,6 +172,7 @@ module "cf-healthchecker" {
   vpc_connector_config = {
     ip_cidr_range = "10.132.0.0/28"
     network       = "vpc"
+    instances     = {}
   }
   iam = {
     "roles/cloudfunctions.invoker" = [module.service-account-scheduler.iam_email]

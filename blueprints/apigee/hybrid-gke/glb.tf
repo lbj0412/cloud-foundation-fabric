@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ locals {
 }
 
 module "addresses" {
-  source           = "../../../modules/net-address"
-  project_id       = module.project.project_id
-  global_addresses = [local.ingress_ip_name]
+  source     = "../../../modules/net-address"
+  project_id = module.project.project_id
+  global_addresses = {
+    (local.ingress_ip_name) = {}
+  }
 }

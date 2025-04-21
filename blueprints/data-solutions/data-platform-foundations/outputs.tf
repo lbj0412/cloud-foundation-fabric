@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ output "demo_commands" {
       --impersonate-service-account=${module.orch-sa-df-build.email} \
       --substitutions=_TEMPLATE_IMAGE="${local.orch_docker_path}/csv2bq:latest",_TEMPLATE_PATH="gs://${module.orch-cs-df-template.name}/csv2bq.json",_DOCKER_DIR="./demo/dataflow-csv2bq"
     EOT
-    05 = try("Open ${google_composer_environment.orch-cmp-0[0].config.0.airflow_uri} and run uploaded DAG.", "Composer not deployed")
+    05 = try("Open ${google_composer_environment.orch-cmp-0[0].config[0].airflow_uri} and run uploaded DAG.", "Composer not deployed")
     06 = <<EOT
            bq query --project_id=${module.dwh-conf-project.project_id} --use_legacy_sql=false 'SELECT * EXCEPT (name, surname) FROM `${module.dwh-conf-project.project_id}.${module.dwh-conf-bq-0.dataset_id}.customer_purchase` LIMIT 1000'"
          EOT
@@ -66,11 +66,6 @@ output "gcs-buckets" {
     orch-cs-0             = module.orch-cs-0.name,
     transf-cs-df          = module.transf-cs-df-0.name,
   }
-}
-
-output "kms_keys" {
-  description = "Cloud MKS keys."
-  value       = local.service_encryption_keys
 }
 
 output "projects" {

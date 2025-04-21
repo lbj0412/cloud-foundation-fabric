@@ -17,6 +17,7 @@
 # tfdoc:file:description Output files persistence to local filesystem.
 
 locals {
+  _tpl_providers   = "${path.module}/templates/providers.tf.tpl"
   outputs_location = try(pathexpand(var.outputs_location), "")
 }
 
@@ -35,8 +36,28 @@ resource "local_file" "tfvars" {
 }
 
 resource "local_file" "workflows" {
-  for_each        = var.outputs_location == null ? {} : merge(local.cicd_workflows, local.team_cicd_workflows)
+  for_each        = var.outputs_location == null ? {} : local.cicd_workflows
   file_permission = "0644"
   filename        = "${local.outputs_location}/workflows/${replace(each.key, "_", "-")}-workflow.yaml"
   content         = try(each.value, null)
+}
+
+resource "google_storage_bucket_object" "providers" {
+  for_each = local.providers
+  bucket   = var.automation.outputs_bucket
+  name     = "providers/${each.key}-providers.tf"
+  content  = each.value
+}
+
+resource "google_storage_bucket_object" "tfvars" {
+  bucket  = var.automation.outputs_bucket
+  name    = "tfvars/1-resman.auto.tfvars.json"
+  content = jsonencode(local.tfvars)
+}
+
+resource "google_storage_bucket_object" "workflows" {
+  for_each = local.cicd_workflows
+  bucket   = var.automation.outputs_bucket
+  name     = "workflows/${replace(each.key, "_", "-")}-workflow.yaml"
+  content  = each.value
 }

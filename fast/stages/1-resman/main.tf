@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,85 +15,69 @@
  */
 
 locals {
-  # convenience flags that express where billing account resides
-  automation_resman_sa = try(
-    data.google_client_openid_userinfo.provider_identity.0.email, null
-  )
-  automation_resman_sa_iam = (
-    local.automation_resman_sa == null
-    ? []
-    : ["serviceAccount:${local.automation_resman_sa}"]
-  )
-  branch_optional_sa_lists = {
-    dp-dev   = compact([try(module.branch-dp-dev-sa.0.iam_email, "")])
-    dp-prod  = compact([try(module.branch-dp-prod-sa.0.iam_email, "")])
-    gke-dev  = compact([try(module.branch-gke-dev-sa.0.iam_email, "")])
-    gke-prod = compact([try(module.branch-gke-prod-sa.0.iam_email, "")])
-    pf-dev   = compact([try(module.branch-pf-dev-sa.0.iam_email, "")])
-    pf-prod  = compact([try(module.branch-pf-prod-sa.0.iam_email, "")])
-  }
-  cicd_repositories = {
-    for k, v in coalesce(var.cicd_repositories, {}) : k => v
-    if(
-      v != null &&
-      (
-        try(v.type, null) == "sourcerepo"
-        ||
-        contains(
-          keys(local.identity_providers),
-          coalesce(try(v.identity_provider, null), ":")
-        )
-      ) &&
-      fileexists("${path.module}/templates/workflow-${try(v.type, "")}.yaml")
-    )
-  }
-  team_cicd_repositories = {
-    for k, v in coalesce(var.team_folders, {}) : k => v
-    if(
-      v != null &&
-      (
-        try(v.cicd.type, null) == "sourcerepo"
-        ||
-        contains(
-          keys(local.identity_providers),
-          coalesce(try(v.cicd.identity_provider, null), ":")
-        )
-      ) &&
-      fileexists("${path.module}/templates/workflow-${try(v.cicd.type, "")}.yaml")
-    )
-  }
-  cicd_workflow_var_files = {
-    stage_2 = [
-      "0-bootstrap.auto.tfvars.json",
-      "1-resman.auto.tfvars.json",
-      "0-globals.auto.tfvars.json"
-    ]
-    stage_3 = [
-      "0-bootstrap.auto.tfvars.json",
-      "1-resman.auto.tfvars.json",
-      "0-globals.auto.tfvars.json",
-      "2-networking.auto.tfvars.json",
-      "2-security.auto.tfvars.json"
-    ]
-  }
-  custom_roles = coalesce(var.custom_roles, {})
-  gcs_storage_class = (
-    length(split("-", var.locations.gcs)) < 2
-    ? "MULTI_REGIONAL"
-    : "REGIONAL"
-  )
-  groups = {
-    for k, v in var.groups :
-    k => can(regex(".*@.*", v)) ? v : "${v}@${var.organization.domain}"
-  }
-  groups_iam = {
-    for k, v in local.groups : k => v != null ? "group:${v}" : null
-  }
+  environment_default = [
+    for k, v in var.environments : v if v.is_default
+  ][0]
   identity_providers = coalesce(
     try(var.automation.federated_identity_providers, null), {}
   )
+  principals = {
+    for k, v in var.groups : k => (
+      can(regex("^[a-zA-Z]+:", v))
+      ? v
+      : "group:${v}@${var.organization.domain}"
+    )
+  }
+  principals_iam = merge(local.principals, {
+    for k, v in local.stage_service_accounts :
+    replace(k, "_", "-") => "serviceAccount:${v}"
+  })
+  root_node = (
+    var.root_node == null
+    ? "organizations/${var.organization.id}"
+    : var.root_node
+  )
+  # normalize parent stages
+  stage_addons = {
+    for k, v in var.fast_addon : k => merge(v, {
+      short_name = k
+      stage      = regex("^(?P<level>[0-9])-(?P<name>.*?)$", v.parent_stage)
+    })
+  }
+  # combined list of stage service accounts
+  stage_service_accounts = merge(
+    { for k, v in local.stage2 : "${k}-rw" => module.stage2-sa-rw[k].email },
+    { for k, v in local.stage2 : "${k}-ro" => module.stage2-sa-ro[k].email },
+    { for k, v in local.stage3 : "${k}-rw" => module.stage3-sa-rw[k].email },
+    { for k, v in local.stage3 : "${k}-ro" => module.stage3-sa-ro[k].email },
+  )
+  tag_keys = (
+    var.root_node == null
+    ? module.organization[0].tag_keys
+    : module.automation-project[0].tag_keys
+  )
+  tag_root = (
+    var.root_node == null
+    ? var.organization.id
+    : var.automation.project_id
+  )
+  tag_values = (
+    var.root_node == null
+    ? module.organization[0].tag_values
+    : module.automation-project[0].tag_values
+  )
+  top_level_folder_ids = {
+    for k, v in module.top-level-folder : k => v.id
+  }
+  top_level_service_accounts = {
+    for k, v in module.top-level-sa : k => try(v.email)
+  }
+  # leaving this here to document how to get self identity in a stage
+  # automation_resman_sa = try(
+  #   data.google_client_openid_userinfo.provider_identity[0].email, null
+  # )
 }
 
-data "google_client_openid_userinfo" "provider_identity" {
-  count = length(local.cicd_repositories) > 0 ? 1 : 0
-}
+# data "google_client_openid_userinfo" "provider_identity" {
+#   count = length(local.cicd_repositories) > 0 ? 1 : 0
+# }

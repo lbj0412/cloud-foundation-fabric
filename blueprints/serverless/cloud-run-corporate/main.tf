@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ locals {
 module "project_main" {
   source          = "../../../modules/project"
   name            = var.prj_main_id
-  project_create  = var.prj_main_create != null
+  project_reuse   = var.prj_main_create != null ? null : {}
   billing_account = try(var.prj_main_create.billing_account_id, null)
   parent          = try(var.prj_main_create.parent, null)
   # Enable Shared VPC by default, some use cases will use this project as host
@@ -60,7 +60,6 @@ module "project_main" {
     "cloudresourcemanager.googleapis.com",
     "accesscontextmanager.googleapis.com"
   ]
-  skip_delete = true
 }
 
 # Simulated onprem environment
@@ -68,14 +67,13 @@ module "project_onprem" {
   source          = "../../../modules/project"
   count           = var.prj_onprem_id != null ? 1 : 0
   name            = var.prj_onprem_id
-  project_create  = var.prj_onprem_create != null
+  project_reuse   = var.prj_onprem_create != null ? null : {}
   billing_account = try(var.prj_onprem_create.billing_account_id, null)
   parent          = try(var.prj_onprem_create.parent, null)
   services = [
     "compute.googleapis.com",
     "dns.googleapis.com"
   ]
-  skip_delete = true
 }
 
 # Project 1
@@ -83,14 +81,13 @@ module "project_prj1" {
   source          = "../../../modules/project"
   count           = var.prj_prj1_id != null ? 1 : 0
   name            = var.prj_prj1_id
-  project_create  = var.prj_prj1_create != null
+  project_reuse   = var.prj_prj1_create != null ? null : {}
   billing_account = try(var.prj_prj1_create.billing_account_id, null)
   parent          = try(var.prj_prj1_create.parent, null)
   services = [
     "compute.googleapis.com",
     "dns.googleapis.com"
   ]
-  skip_delete = true
 }
 
 # Service Project 1
@@ -98,12 +95,12 @@ module "project_svc1" {
   source          = "../../../modules/project"
   count           = var.prj_svc1_id != null ? 1 : 0
   name            = var.prj_svc1_id
-  project_create  = var.prj_svc1_create != null
+  project_reuse   = var.prj_svc1_create != null ? null : {}
   billing_account = try(var.prj_svc1_create.billing_account_id, null)
   parent          = try(var.prj_svc1_create.parent, null)
   shared_vpc_service_config = {
     host_project = module.project_main.project_id
-    service_identity_iam = {
+    service_agent_iam = {
       "roles/compute.networkUser" = [
         "vpcaccess"
       ],
@@ -118,7 +115,6 @@ module "project_svc1" {
     "run.googleapis.com",
     "vpcaccess.googleapis.com"
   ]
-  skip_delete = true
 }
 
 ###############################################################################

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,16 +24,16 @@ module "project" {
     ? var.project_create.parent
     : null
   )
-  name           = var.project_id
-  project_create = var.project_create != null
+  name          = var.project_id
+  project_reuse = var.project_create != null ? null : {}
   services = [
     "apigee.googleapis.com",
     "bigquery.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudfunctions.googleapis.com",
     "cloudscheduler.googleapis.com",
-    "logging.googleapis.com",
     "compute.googleapis.com",
+    "logging.googleapis.com",
     "pubsub.googleapis.com",
     "servicenetworking.googleapis.com",
     "storage.googleapis.com"
@@ -50,7 +50,7 @@ module "project" {
       module.function_export.service_account_iam_email
     ]
     "roles/storage.admin" = [
-      "serviceAccount:${module.project.service_accounts.robots.apigee}"
+      module.project.service_agents.apigee.iam_email
     ]
   }
 }
@@ -65,14 +65,14 @@ module "vpc" {
     name          = "subnet-psc-${k}"
     region        = k
   }]
-  psa_config = {
+  psa_configs = [{
     ranges = merge({ for k, v in var.instances :
       "apigee-runtime-${k}" => v.runtime_ip_cidr_range
       }, { for k, v in var.instances :
       "apigee-troubleshooting-${k}" => v.troubleshooting_ip_cidr_range
       }
     )
-  }
+  }]
 }
 
 module "apigee" {
@@ -136,6 +136,7 @@ module "bucket_export" {
   source     = "../../../modules/gcs"
   project_id = module.project.project_id
   name       = "${module.project.project_id}-export"
+  location   = var.organization.analytics_region
   iam = {
     "roles/storage.objectViewer" = [
       module.function_gcs2bq.service_account_iam_email
@@ -144,7 +145,7 @@ module "bucket_export" {
   notification_config = {
     enabled           = true
     payload_format    = "JSON_API_V1"
-    sa_email          = module.project.service_accounts.robots.storage
+    sa_email          = module.project.service_agents.storage.email
     topic_name        = "topic-gcs2bq"
     event_types       = ["OBJECT_FINALIZE"]
     custom_attributes = {}
@@ -163,9 +164,7 @@ module "function_export" {
     lifecycle_delete_age = 1
   }
   bundle_config = {
-    source_dir  = "${path.module}/functions/export"
-    output_path = "${path.module}/bundle-export.zip"
-    excludes    = null
+    path = "${path.module}/functions/export"
   }
   function_config = {
     entry_point = "export"
@@ -199,9 +198,7 @@ module "function_gcs2bq" {
     lifecycle_delete_age = 1
   }
   bundle_config = {
-    source_dir  = "${path.module}/functions/gcs2bq"
-    output_path = "${path.module}/bundle-gcs2bq.zip"
-    excludes    = null
+    path = "${path.module}/functions/gcs2bq"
   }
   function_config = {
     entry_point = "gcs2bq"

@@ -54,7 +54,7 @@ resource "google_pubsub_subscription" "default" {
   project                      = var.project_id
   name                         = each.key
   topic                        = google_pubsub_topic.default.name
-  labels                       = each.value.labels
+  labels                       = coalesce(each.value.labels, var.labels)
   ack_deadline_seconds         = each.value.ack_deadline_seconds
   message_retention_duration   = each.value.message_retention_duration
   retain_acked_messages        = each.value.retain_acked_messages
@@ -77,11 +77,33 @@ resource "google_pubsub_subscription" "default" {
     }
   }
 
+  dynamic "retry_policy" {
+    for_each = each.value.retry_policy == null ? [] : [""]
+    content {
+      maximum_backoff = (
+        each.value.retry_policy.maximum_backoff != null
+        ? "${each.value.retry_policy.maximum_backoff}s"
+        : null
+      )
+      minimum_backoff = (
+        each.value.retry_policy.minimum_backoff != null
+        ? "${each.value.retry_policy.minimum_backoff}s"
+        : null
+      )
+    }
+  }
+
   dynamic "push_config" {
     for_each = each.value.push == null ? [] : [""]
     content {
       push_endpoint = each.value.push.endpoint
       attributes    = each.value.push.attributes
+      dynamic "no_wrapper" {
+        for_each = each.value.push.no_wrapper == null ? [] : [""]
+        content {
+          write_metadata = each.value.push.no_wrapper.write_metadata
+        }
+      }
       dynamic "oidc_token" {
         for_each = each.value.push.oidc_token == null ? [] : [""]
         content {
@@ -95,10 +117,12 @@ resource "google_pubsub_subscription" "default" {
   dynamic "bigquery_config" {
     for_each = each.value.bigquery == null ? [] : [""]
     content {
-      table               = each.value.bigquery.table
-      use_topic_schema    = each.value.bigquery.use_topic_schema
-      write_metadata      = each.value.bigquery.write_metadata
-      drop_unknown_fields = each.value.bigquery.drop_unknown_fields
+      table                 = each.value.bigquery.table
+      use_table_schema      = each.value.bigquery.use_table_schema
+      use_topic_schema      = each.value.bigquery.use_topic_schema
+      write_metadata        = each.value.bigquery.write_metadata
+      drop_unknown_fields   = each.value.bigquery.drop_unknown_fields
+      service_account_email = each.value.bigquery.service_account_email
     }
   }
 

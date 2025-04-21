@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,6 +42,6 @@ output "vm_keys" {
   description = "GCE VM Cloud KMS crypto keys."
   value = {
     name = module.vm_example.instance.name
-    key  = module.vm_example.instance.boot_disk.0.kms_key_self_link
+    key  = module.vm_example.instance.boot_disk[0].kms_key_self_link
   }
 }

@@ -32,15 +32,15 @@ module "project_landing" {
     ? var.projects_create.parent
     : null
   )
-  prefix         = var.prefix
-  project_create = var.projects_create != null
+  prefix        = var.prefix
+  project_reuse = var.projects_create != null ? null : {}
 
   services = [
     "compute.googleapis.com",
     "networkmanagement.googleapis.com",
     # Logging and Monitoring
     "logging.googleapis.com",
-    "monitoring.googleapis.com"
+    "monitoring.googleapis.com",
   ]
 }
 
@@ -53,12 +53,12 @@ module "vpc_landing_untrusted" {
     spoke1-primary = {
       dest_range    = var.ip_config.spoke_primary
       next_hop_type = "ilb"
-      next_hop      = module.nva_untrusted_ilbs["primary"].forwarding_rule_self_link
+      next_hop      = module.nva_untrusted_ilbs["primary"].forwarding_rule_self_links[""]
     }
     spoke1-secondary = {
       dest_range    = var.ip_config.spoke_secondary
       next_hop_type = "ilb"
-      next_hop      = module.nva_untrusted_ilbs["secondary"].forwarding_rule_self_link
+      next_hop      = module.nva_untrusted_ilbs["secondary"].forwarding_rule_self_links[""]
     }
   }
 

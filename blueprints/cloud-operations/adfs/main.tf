@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ module "project" {
     ? var.project_create.parent
     : null
   )
-  project_create = var.project_create != null
-  prefix         = var.project_create == null ? null : var.prefix
-  name           = var.project_id
+  project_reuse = var.project_create != null ? null : {}
+  prefix        = var.project_create == null ? null : var.prefix
+  name          = var.project_id
   services = [
     "compute.googleapis.com",
     "dns.googleapis.com",
@@ -119,7 +119,7 @@ module "glb" {
   ssl_certificates = {
     managed_configs = {
       adfs-domain = {
-        domains = ["${var.adfs_dns_domain_name}"]
+        domains = [var.adfs_dns_domain_name]
       }
     }
   }

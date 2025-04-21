@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ locals {
 }
 
 module "project" {
-  source         = "../../../modules/project"
-  name           = var.project_id
-  project_create = var.project_create
+  source        = "../../../modules/project"
+  name          = var.project_id
+  project_reuse = var.project_create != true ? {} : null
   services = [
     "cloudasset.googleapis.com",
     "cloudbuild.googleapis.com",
@@ -63,7 +63,7 @@ module "pubsub" {
   }
   iam = {
     "roles/pubsub.publisher" = [
-      "serviceAccount:${module.project.service_accounts.robots.cloudasset}"
+      module.project.service_agents.cloudasset.iam_email
     ]
   }
 }
@@ -78,14 +78,17 @@ module "service-account" {
 module "cf" {
   source      = "../../../modules/cloud-function-v1"
   project_id  = module.project.project_id
+  region      = var.region
   name        = var.name
   bucket_name = "${var.name}-${random_pet.random.id}"
   bucket_config = {
     location = var.region
   }
   bundle_config = {
-    source_dir  = "${path.module}/cf"
-    output_path = var.bundle_path
+    path = "${path.module}/cf"
+    folder_options = {
+      archive_path = var.bundle_path
+    }
   }
   service_account = module.service-account.email
   trigger_config = {

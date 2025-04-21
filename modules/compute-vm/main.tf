@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 
 locals {
+  advanced_mf = var.options.advanced_machine_features
   attached_disks = {
     for disk in var.attached_disks :
     (disk.name != null ? disk.name : disk.device_name) => merge(disk, {
@@ -30,11 +31,12 @@ locals {
     k => v if try(v.options.replica_zone, null) == null
   }
   on_host_maintenance = (
-    var.options.spot || var.confidential_compute
+    var.options.spot || var.confidential_compute || local.gpu
     ? "TERMINATE"
     : "MIGRATE"
   )
   region = join("-", slice(split("-", var.zone), 0, 2))
+  gpu    = var.gpu != null
   service_account = var.service_account == null ? null : {
     email = (
       var.service_account.auto_create
@@ -58,7 +60,9 @@ locals {
       )
     )
   }
-  termination_action = var.options.spot ? coalesce(var.options.termination_action, "STOP") : null
+  termination_action = (
+    var.options.spot || var.options.max_run_duration != null ? coalesce(var.options.termination_action, "STOP") : null
+  )
 }
 
 resource "google_compute_disk" "boot" {
@@ -154,6 +158,20 @@ resource "google_compute_instance" "default" {
   metadata                  = var.metadata
   resource_policies         = local.ischedule_attach
 
+  dynamic "advanced_machine_features" {
+    for_each = local.advanced_mf != null ? [""] : []
+    content {
+      enable_nested_virtualization = local.advanced_mf.enable_nested_virtualization
+      enable_uefi_networking       = local.advanced_mf.enable_uefi_networking
+      performance_monitoring_unit  = local.advanced_mf.performance_monitoring_unit
+      threads_per_core             = local.advanced_mf.threads_per_core
+      turbo_mode = (
+        local.advanced_mf.enable_turbo_mode ? "ALL_CORE_MAX" : null
+      )
+      visible_core_count = local.advanced_mf.visible_core_count
+    }
+  }
+
   dynamic "attached_disk" {
     for_each = local.attached_disks_zonal
     iterator = config
@@ -198,7 +216,7 @@ resource "google_compute_instance" "default" {
     )
     source = (
       var.boot_disk.use_independent_disk
-      ? google_compute_disk.boot.0.id
+      ? google_compute_disk.boot[0].id
       : var.boot_disk.source
     )
     disk_encryption_key_raw = (
@@ -216,9 +234,10 @@ resource "google_compute_instance" "default" {
         : [""]
       )
       content {
-        image = var.boot_disk.initialize_params.image
-        size  = var.boot_disk.initialize_params.size
-        type  = var.boot_disk.initialize_params.type
+        image                 = var.boot_disk.initialize_params.image
+        size                  = var.boot_disk.initialize_params.size
+        type                  = var.boot_disk.initialize_params.type
+        resource_manager_tags = var.tag_bindings_immutable
       }
     }
   }
@@ -237,6 +256,8 @@ resource "google_compute_instance" "default" {
       network    = config.value.network
       subnetwork = config.value.subnetwork
       network_ip = try(config.value.addresses.internal, null)
+      nic_type   = config.value.nic_type
+      stack_type = config.value.stack_type
       dynamic "access_config" {
         for_each = config.value.nat ? [""] : []
         content {
@@ -251,7 +272,13 @@ resource "google_compute_instance" "default" {
           ip_cidr_range         = config_alias.value
         }
       }
-      nic_type = config.value.nic_type
+    }
+  }
+
+  dynamic "network_interface" {
+    for_each = var.network_attached_interfaces
+    content {
+      network_attachment = network_interface.value
     }
   }
 
@@ -261,6 +288,38 @@ resource "google_compute_instance" "default" {
     on_host_maintenance         = local.on_host_maintenance
     preemptible                 = var.options.spot
     provisioning_model          = var.options.spot ? "SPOT" : "STANDARD"
+    dynamic "max_run_duration" {
+      for_each = var.options.max_run_duration == null ? [] : [""]
+      content {
+        nanos   = var.options.max_run_duration.nanos
+        seconds = var.options.max_run_duration.seconds
+      }
+    }
+
+    dynamic "node_affinities" {
+      for_each = var.options.node_affinities
+      iterator = affinity
+      content {
+        key      = affinity.key
+        operator = affinity.value.in ? "IN" : "NOT_IN"
+        values   = affinity.value.values
+      }
+    }
+
+    dynamic "graceful_shutdown" {
+      for_each = var.options.graceful_shutdown != null ? [""] : []
+      content {
+        enabled = var.options.graceful_shutdown.enabled
+        dynamic "max_duration" {
+          for_each = var.options.graceful_shutdown.enabled == true && var.options.graceful_shutdown.max_duration_secs != null ? [""] : []
+          content {
+            seconds = var.options.graceful_shutdown.max_duration_secs
+            nanos   = 0
+          }
+        }
+      }
+    }
+
   }
 
   dynamic "scratch_disk" {
@@ -291,7 +350,20 @@ resource "google_compute_instance" "default" {
     }
   }
 
-  # guest_accelerator
+  dynamic "params" {
+    for_each = var.tag_bindings_immutable == null ? [] : [""]
+    content {
+      resource_manager_tags = var.tag_bindings_immutable
+    }
+  }
+
+  dynamic "guest_accelerator" {
+    for_each = local.gpu ? [var.gpu] : []
+    content {
+      type  = guest_accelerator.value.type
+      count = guest_accelerator.value.count
+    }
+  }
 }
 
 resource "google_compute_instance_iam_binding" "default" {
@@ -305,25 +377,48 @@ resource "google_compute_instance_iam_binding" "default" {
 }
 
 resource "google_compute_instance_template" "default" {
-  provider         = google-beta
-  count            = var.create_template ? 1 : 0
-  project          = var.project_id
-  region           = local.region
-  name_prefix      = "${var.name}-"
-  description      = var.description
-  tags             = var.tags
-  machine_type     = var.instance_type
-  min_cpu_platform = var.min_cpu_platform
-  can_ip_forward   = var.can_ip_forward
-  metadata         = var.metadata
-  labels           = var.labels
+  provider              = google-beta
+  count                 = var.create_template ? 1 : 0
+  project               = var.project_id
+  region                = local.region
+  name_prefix           = "${var.name}-"
+  description           = var.description
+  tags                  = var.tags
+  machine_type          = var.instance_type
+  min_cpu_platform      = var.min_cpu_platform
+  can_ip_forward        = var.can_ip_forward
+  metadata              = var.metadata
+  labels                = var.labels
+  resource_manager_tags = var.tag_bindings_immutable
+
+  dynamic "advanced_machine_features" {
+    for_each = local.advanced_mf != null ? [""] : []
+    content {
+      enable_nested_virtualization = local.advanced_mf.enable_nested_virtualization
+      enable_uefi_networking       = local.advanced_mf.enable_uefi_networking
+      performance_monitoring_unit  = local.advanced_mf.performance_monitoring_unit
+      threads_per_core             = local.advanced_mf.threads_per_core
+      turbo_mode = (
+        local.advanced_mf.enable_turbo_mode ? "ALL_CORE_MAX" : null
+      )
+      visible_core_count = local.advanced_mf.visible_core_count
+    }
+  }
 
   disk {
-    auto_delete  = var.boot_disk.auto_delete
-    boot         = true
-    disk_size_gb = var.boot_disk.initialize_params.size
-    disk_type    = var.boot_disk.initialize_params.type
-    source_image = var.boot_disk.initialize_params.image
+    auto_delete           = var.boot_disk.auto_delete
+    boot                  = true
+    disk_size_gb          = var.boot_disk.initialize_params.size
+    disk_type             = var.boot_disk.initialize_params.type
+    resource_manager_tags = var.tag_bindings_immutable
+    source_image          = var.boot_disk.initialize_params.image
+
+    dynamic "disk_encryption_key" {
+      for_each = var.encryption != null ? [""] : []
+      content {
+        kms_key_self_link = var.encryption.kms_key_self_link
+      }
+    }
   }
 
   dynamic "confidential_instance_config" {
@@ -333,6 +428,13 @@ resource "google_compute_instance_template" "default" {
     }
   }
 
+  dynamic "guest_accelerator" {
+    for_each = local.gpu ? [var.gpu] : []
+    content {
+      type  = guest_accelerator.value.type
+      count = guest_accelerator.value.count
+    }
+  }
   dynamic "disk" {
     for_each = local.attached_disks
     iterator = config
@@ -357,7 +459,8 @@ resource "google_compute_instance_template" "default" {
       disk_name = (
         config.value.source_type != "attach" ? config.value.name : null
       )
-      type = "PERSISTENT"
+      resource_manager_tags = var.tag_bindings_immutable
+      type                  = "PERSISTENT"
       dynamic "disk_encryption_key" {
         for_each = var.encryption != null ? [""] : []
         content {
@@ -374,6 +477,8 @@ resource "google_compute_instance_template" "default" {
       network    = config.value.network
       subnetwork = config.value.subnetwork
       network_ip = try(config.value.addresses.internal, null)
+      nic_type   = config.value.nic_type
+      stack_type = config.value.stack_type
       dynamic "access_config" {
         for_each = config.value.nat ? [""] : []
         content {
@@ -388,7 +493,13 @@ resource "google_compute_instance_template" "default" {
           ip_cidr_range         = config_alias.value
         }
       }
-      nic_type = config.value.nic_type
+    }
+  }
+
+  dynamic "network_interface" {
+    for_each = var.network_attached_interfaces
+    content {
+      network_attachment = network_interface.value
     }
   }
 
@@ -398,6 +509,37 @@ resource "google_compute_instance_template" "default" {
     on_host_maintenance         = local.on_host_maintenance
     preemptible                 = var.options.spot
     provisioning_model          = var.options.spot ? "SPOT" : "STANDARD"
+    dynamic "max_run_duration" {
+      for_each = var.options.max_run_duration == null ? [] : [""]
+      content {
+        nanos   = var.options.max_run_duration.nanos
+        seconds = var.options.max_run_duration.seconds
+      }
+    }
+
+    dynamic "node_affinities" {
+      for_each = var.options.node_affinities
+      iterator = affinity
+      content {
+        key      = affinity.key
+        operator = affinity.value.in ? "IN" : "NOT_IN"
+        values   = affinity.value.values
+      }
+    }
+
+    dynamic "graceful_shutdown" {
+      for_each = var.options.graceful_shutdown != null ? [""] : []
+      content {
+        enabled = var.options.graceful_shutdown.enabled
+        dynamic "max_duration" {
+          for_each = var.options.graceful_shutdown.enabled == true && var.options.graceful_shutdown.max_duration_secs != null ? [""] : []
+          content {
+            seconds = var.options.graceful_shutdown.max_duration_secs
+            nanos   = 0
+          }
+        }
+      }
+    }
   }
 
   dynamic "service_account" {
@@ -428,13 +570,13 @@ resource "google_compute_instance_group" "unmanaged" {
   project = var.project_id
   network = (
     length(var.network_interfaces) > 0
-    ? var.network_interfaces.0.network
+    ? var.network_interfaces[0].network
     : ""
   )
   zone        = var.zone
   name        = var.name
   description = var.description
-  instances   = [google_compute_instance.default.0.self_link]
+  instances   = [google_compute_instance.default[0].self_link]
   dynamic "named_port" {
     for_each = var.group.named_ports != null ? var.group.named_ports : {}
     iterator = config

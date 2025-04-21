@@ -18,7 +18,6 @@ and to `C:\GcpSetupLog.txt` file.
 
 <!-- TFDOC OPTS files:1 -->
 <!-- BEGIN TFDOC -->
-
 ## Files
 
 | name | description | modules |
@@ -66,10 +65,8 @@ and to `C:\GcpSetupLog.txt` file.
 
 | name | description | sensitive |
 |---|---|:---:|
-| [instructions](outputs.tf#L19) | List of steps to follow after applying. |  |
-
+| [instructions](outputs.tf#L22) | List of steps to follow after applying. |  |
 <!-- END TFDOC -->
-
 ## Test
 
 ```hcl
@@ -87,5 +84,5 @@ module "test" {
   ad_domain_fqdn     = "ad.example.com"
   ad_domain_netbios  = "ad"
 }
-# tftest modules=12 resources=40
+# tftest modules=12 resources=42
 ```

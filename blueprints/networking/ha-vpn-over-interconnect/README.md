@@ -4,7 +4,7 @@ This blueprint creates a complete HA VPN over Interconnect setup, which leverage
 
 This blueprint supports Dedicated Interconnect and Partner Interconnect.
 
-In case of Partner Interconnect only partial apply is possible at first, which creates the VLAN Attachments. Only once the partner connection is established it is possible to deploy HA VPN Gateway and all dependant resources. 
+In case of Partner Interconnect only partial apply is possible at first, which creates the VLAN Attachments. Only once the partner connection is established it is possible to deploy HA VPN Gateway and all dependent resources.
 
 ## Managed resources and services
 
@@ -153,14 +153,14 @@ module "test" {
     attachments = {
       "a" = {
         bgp_range              = "169.254.255.0/29"
-        interconnect_self_link = "https://www.googleapis.com/compute/v1/projects/gcpnetworking-hostproject/global/interconnects/interconnect-lab-sea26-zone1"
+        interconnect_self_link = "https://www.googleapis.com/compute/v1/projects/myproject/global/interconnects/interconnect-zone1"
         onprem_asn             = 65001
         vlan_tag               = 1001
         vpn_gateways_ip_range  = "10.255.255.0/29"
       }
       "b" = {
         bgp_range              = "169.254.255.8/29"
-        interconnect_self_link = "https://www.googleapis.com/compute/v1/projects/gcpnetworking-hostproject/global/interconnects/interconnect-lab-sea26-zone2"
+        interconnect_self_link = "https://www.googleapis.com/compute/v1/projects/myproject/global/interconnects/interconnect-zone2"
         onprem_asn             = 65001
         vlan_tag               = 1002
         vpn_gateways_ip_range  = "10.255.255.8/29"
@@ -171,5 +171,5 @@ module "test" {
     }
   }
 }
-# tftest modules=5 resources=39
+# tftest modules=5 resources=41
 ```

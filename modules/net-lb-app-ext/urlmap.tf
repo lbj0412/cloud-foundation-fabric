@@ -36,6 +36,31 @@ resource "google_compute_url_map" "default" {
     )
   )
 
+  dynamic "default_custom_error_response_policy" {
+    for_each = (
+      var.urlmap_config.default_custom_error_response_policy == null
+      ? []
+      : [var.urlmap_config.default_custom_error_response_policy]
+    )
+    iterator = p
+    content {
+      error_service = p.value.error_service == null ? null : lookup(
+        local.backend_ids,
+        p.value.error_service,
+        p.value.error_service
+      )
+      dynamic "error_response_rule" {
+        for_each = coalesce(p.value.error_response_rules, [])
+        iterator = r
+        content {
+          match_response_codes   = r.value.match_response_codes
+          path                   = r.value.path
+          override_response_code = r.value.override_response_code
+        }
+      }
+    }
+  }
+
   dynamic "default_route_action" {
     for_each = (
       var.urlmap_config.default_route_action == null
@@ -261,6 +286,30 @@ resource "google_compute_url_map" "default" {
       )
       description = m.value.description
       name        = m.key
+      dynamic "default_custom_error_response_policy" {
+        for_each = (
+          m.value.default_custom_error_response_policy == null
+          ? []
+          : [m.value.default_custom_error_response_policy]
+        )
+        iterator = p
+        content {
+          error_service = p.value.error_service == null ? null : lookup(
+            local.backend_ids,
+            p.value.error_service,
+            p.value.error_service
+          )
+          dynamic "error_response_rule" {
+            for_each = coalesce(p.value.error_response_rules, [])
+            iterator = r
+            content {
+              match_response_codes   = r.value.match_response_codes
+              path                   = r.value.path
+              override_response_code = r.value.override_response_code
+            }
+          }
+        }
+      }
       dynamic "default_route_action" {
         for_each = (
           m.value.default_route_action == null
@@ -472,6 +521,30 @@ resource "google_compute_url_map" "default" {
             path_rule.value.service,
             path_rule.value.service
           )
+          dynamic "custom_error_response_policy" {
+            for_each = (
+              path_rule.value.custom_error_response_policy == null
+              ? []
+              : [path_rule.value.custom_error_response_policy]
+            )
+            iterator = p
+            content {
+              error_service = p.value.error_service == null ? null : lookup(
+                local.backend_ids,
+                p.value.error_service,
+                p.value.error_service
+              )
+              dynamic "error_response_rule" {
+                for_each = coalesce(p.value.error_response_rules, [])
+                iterator = r
+                content {
+                  match_response_codes   = r.value.match_response_codes
+                  path                   = r.value.path
+                  override_response_code = r.value.override_response_code
+                }
+              }
+            }
+          }
           dynamic "route_action" {
             for_each = (
               path_rule.value.route_action == null
@@ -648,7 +721,7 @@ resource "google_compute_url_map" "default" {
         }
       }
       dynamic "route_rules" {
-        for_each = toset(coalesce(m.value.route_rules, []))
+        for_each = coalesce(m.value.route_rules, [])
         content {
           priority = route_rules.value.priority
           service = route_rules.value.service == null ? null : lookup(
@@ -700,6 +773,11 @@ resource "google_compute_url_map" "default" {
               )
               regex_match = (
                 try(match_rules.value.path.type, null) == "regex"
+                ? match_rules.value.path.value
+                : null
+              )
+              path_template_match = (
+                try(match_rules.value.path.type, null) == "template"
                 ? match_rules.value.path.value
                 : null
               )
@@ -873,8 +951,9 @@ resource "google_compute_url_map" "default" {
                   : [route_action.value.url_rewrite]
                 )
                 content {
-                  host_rewrite        = url_rewrite.value.host
-                  path_prefix_rewrite = url_rewrite.value.path_prefix
+                  host_rewrite          = url_rewrite.value.host
+                  path_prefix_rewrite   = url_rewrite.value.path_prefix
+                  path_template_rewrite = url_rewrite.value.path_template
                 }
               }
               dynamic "weighted_backend_services" {

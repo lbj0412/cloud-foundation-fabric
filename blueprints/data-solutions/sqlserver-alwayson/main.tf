@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ module "project" {
   name            = var.project_id
   parent          = try(var.project_create.parent, null)
   billing_account = try(var.project_create.billing_account_id, null)
-  project_create  = var.project_create != null
+  project_reuse   = var.project_create != null ? null : {}
   prefix          = var.project_create == null ? null : var.prefix
   services = [
     "compute.googleapis.com",

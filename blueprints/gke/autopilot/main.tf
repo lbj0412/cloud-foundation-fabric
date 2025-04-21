@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ module "project" {
     ? var.project_create.parent
     : null
   )
-  project_create = var.project_create != null
-  name           = var.project_id
+  project_reuse = var.project_create != null ? null : {}
+  name          = var.project_id
   services = [
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
@@ -59,6 +59,7 @@ module "docker_artifact_registry" {
   project_id = module.project.project_id
   location   = var.region
   name       = "registry"
+  format     = { docker = { standard = {} } }
   iam = {
     "roles/artifactregistry.reader" = [module.node_sa.iam_email]
   }

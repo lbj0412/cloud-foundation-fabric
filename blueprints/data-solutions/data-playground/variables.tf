@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+variable "deletion_protection" {
+  description = "Prevent Terraform from destroying data storage resources (storage buckets, GKE clusters, CloudSQL instances) in this blueprint. When this field is set in Terraform state, a terraform destroy or terraform apply that would delete data storage resources will fail."
+  type        = bool
+  default     = false
+  nullable    = false
+}
 
 variable "location" {
   description = "The location where resources will be deployed."
@@ -61,9 +68,10 @@ variable "region" {
 variable "service_encryption_keys" { # service encryption key
   description = "Cloud KMS to use to encrypt different services. Key location should match service region."
   type = object({
-    bq      = string
-    compute = string
-    storage = string
+    bq      = optional(string)
+    compute = optional(string)
+    storage = optional(string)
   })
-  default = null
+  default  = {}
+  nullable = false
 }

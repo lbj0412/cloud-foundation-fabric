@@ -16,6 +16,12 @@ The blueprint's feed tracks changes to Google Compute instances, and the Cloud F
 
 <br clear="left">
 
+## Compute Engine quota monitoring
+
+<a href="./compute-quota-monitoring" title="Compute Engine quota monitoring"><img src="./compute-quota-monitoring/diagram.png" align="left" width="280px"></a> This [blueprint](./compute-quota-monitoring) shows a practical way of collecting and monitoring [Compute Engine resource quotas](https://cloud.google.com/compute/quotas) via Cloud Monitoring metrics as an alternative to the recently released [built-in quota metrics](https://cloud.google.com/monitoring/alerts/using-quota-metrics). A simple alert on quota thresholds is also part of the blueprint.
+
+<br clear="left">
+
 ## Granular Cloud DNS IAM via Service Directory
 
 <a href="./dns-fine-grained-iam" title="Fine-grained Cloud DNS IAM with Service Directory"><img src="./dns-fine-grained-iam/diagram.png" align="left" width="280px"></a> This [blueprint](./dns-fine-grained-iam) shows how to leverage [Service Directory](https://cloud.google.com/blog/products/networking/introducing-service-directory) and Cloud DNS Service Directory private zones, to implement fine-grained IAM controls on DNS. The blueprint creates a Service Directory namespace, a Cloud DNS private zone that uses it as its authoritative source, service accounts with different levels of permissions, and VMs to test them.
@@ -34,27 +40,15 @@ The blueprint's feed tracks changes to Google Compute instances, and the Cloud F
 
 <br clear="left">
 
-## Network Dashboard
+## Network Quota Monitoring
 
-<a href="./network-dashboard" title="Network Dashboard"><img src="./network-dashboard/metric.png" align="left" width="280px"></a> This [blueprint](./network-dashboard/) provides an end-to-end solution to gather some GCP Networking quotas and limits (that cannot be seen in the GCP console today) and display them in a dashboard. The goal is to allow for better visibility of these limits, facilitating capacity planning and avoiding hitting these limits..
-
-<br clear="left">
-
-## On-prem Service Account key management
-
-This [blueprint](./onprem-sa-key-management) shows how to manage IAM Service Account Keys by manually generating a key pair and uploading the public part of the key to GCP.
+<a href="./network-quota-monitoring" title="Network Quota Monitoring"><img src="./network-quota-monitoring/metric.png" align="left" width="280px"></a> This [blueprint](./network-quota-monitoring) provides an end-to-end solution to gather some GCP Networking quotas and limits (that cannot be seen in the GCP console today) and display them in a dashboard. The goal is to allow for better visibility of these limits, facilitating capacity planning and avoiding hitting these limits.
 
 <br clear="left">
 
 ## Packer image builder
 
 <a href="./packer-image-builder" title="Packer image builder"><img src="./packer-image-builder/diagram.png" align="left" width="280px"></a> This [blueprint](./packer-image-builder) shows how to deploy infrastructure for a Compute Engine image builder based on [Hashicorp's Packer tool](https://www.packer.io).
-
-<br clear="left">
-
-## Compute Engine quota monitoring
-
-<a href="./quota-monitoring" title="Compute Engine quota monitoring"><img src="./quota-monitoring/diagram.png" align="left" width="280px"></a> This [blueprint](./quota-monitoring) shows a practical way of collecting and monitoring [Compute Engine resource quotas](https://cloud.google.com/compute/quotas) via Cloud Monitoring metrics as an alternative to the recently released [built-in quota metrics](https://cloud.google.com/monitoring/alerts/using-quota-metrics). A simple alert on quota thresholds is also part of the blueprint.
 
 <br clear="left">
 
@@ -66,7 +60,7 @@ This [blueprint](./onprem-sa-key-management) shows how to manage IAM Service Acc
 
 ## Workload identity federation with Terraform Cloud workflows
 
-<a href="./terraform-cloud-dynamic-credentials" title="Workload identity federation with Terraform Cloud/Enterprise workflows"><img src="./terraform-cloud-dynamic-credentials/diagram.png" align="left" width="280px"></a> This [blueprint](./terraform-cloud-dynamic-credentials) shows how to configure [Wokload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) between [Terraform Cloud/Enterprise](https://developer.hashicorp.com/terraform/enterprise) instance and Google Cloud.
+<a href="./terraform-cloud-dynamic-credentials" title="Workload identity federation with Terraform Cloud/Enterprise workflows"><img src="./terraform-cloud-dynamic-credentials/diagram.png" align="left" width="280px"></a> This [blueprint](./terraform-cloud-dynamic-credentials) shows how to configure [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) between [Terraform Cloud/Enterprise](https://developer.hashicorp.com/terraform/enterprise) instance and Google Cloud.
 
 <br clear="left">
 
@@ -78,7 +72,7 @@ This [blueprint](./onprem-sa-key-management) shows how to manage IAM Service Acc
 
 ## Migrate for Compute Engine (v5)
 
-<a href="./vm-migration" title="Packer image builder"><img src="./vm-migration/host-target-projects/diagram.png" align="left" width="280px"></a> This set of [blueprints](./vm-migration) shows how to deploy Migrate for Compute Engine (v5) on top of existing Cloud Foundations on different scenarios. An blueprint on how to deploy the M4CE connector on VMWare ESXi is also part of the blueprints.
+<a href="./vm-migration" title="Packer image builder"><img src="./vm-migration/host-target-projects/diagram.png" align="left" width="280px"></a> This set of [blueprints](./vm-migration) shows how to deploy Migrate for Compute Engine (v5) on top of existing Cloud Foundations on different scenarios. A blueprint on how to deploy the M4CE connector on VMWare ESXi is also part of the blueprints.
 
 <br clear="left">
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,13 +32,13 @@ locals {
   subnet = (
     local.use_shared_vpc
     ? var.network_config.subnet_self_link
-    : values(module.vpc.0.subnet_self_links)[0]
+    : values(module.vpc[0].subnet_self_links)[0]
   )
   use_shared_vpc = var.network_config != null
   vpc_self_link = (
     local.use_shared_vpc
     ? var.network_config.network_self_link
-    : module.vpc.0.self_link
+    : module.vpc[0].self_link
   )
 }
 
@@ -47,7 +47,7 @@ module "project" {
   name            = var.project_id
   parent          = try(var.project_create.parent, null)
   billing_account = try(var.project_create.billing_account_id, null)
-  project_create  = var.project_create != null
+  project_reuse   = var.project_create != null ? null : {}
   prefix          = var.project_create == null ? null : var.prefix
   iam_bindings_additive = merge(
     var.data_eng_principal == null ? {} : {
@@ -58,7 +58,7 @@ module "project" {
     },
     {
       for r in local.iam_roles.sql_robot : "sql_robot-${r}" => {
-        member = "serviceAccount:${module.project.service_accounts.robots.sql}"
+        member = module.project.service_agents.cloud-sql.iam_email
         role   = r
       }
     },
@@ -87,9 +87,9 @@ module "project" {
     host_project = local.shared_vpc_project
   }
   service_encryption_key_ids = {
-    compute = try(values(var.service_encryption_keys), [])
-    sql     = try(values(var.service_encryption_keys), [])
-    storage = try(values(var.service_encryption_keys), [])
+    "compute.googleapis.com"  = values(var.service_encryption_keys)
+    "sqladmin.googleapis.com" = values(var.service_encryption_keys)
+    "storage.googleapis.com"  = values(var.service_encryption_keys)
   }
   service_config = {
     disable_on_destroy = false, disable_dependent_services = false
@@ -108,17 +108,17 @@ module "vpc" {
       region        = var.regions.primary
     }
   ]
-  psa_config = {
+  psa_configs = [{
     ranges = { cloud-sql = var.sql_configuration.psa_range }
     routes = null
-  }
+  }]
 }
 
 module "firewall" {
   source     = "../../../modules/net-vpc-firewall"
   count      = local.use_shared_vpc ? 0 : 1
   project_id = module.project.project_id
-  network    = module.vpc.0.name
+  network    = module.vpc[0].name
   default_rules_config = {
     admin_ranges = ["10.0.0.0/20"]
   }
@@ -130,7 +130,7 @@ module "nat" {
   project_id     = module.project.project_id
   region         = var.regions.primary
   name           = "${var.prefix}-default"
-  router_network = module.vpc.0.name
+  router_network = module.vpc[0].name
 }
 
 module "gcs" {
@@ -140,6 +140,6 @@ module "gcs" {
   name           = "data"
   location       = var.regions.primary
   storage_class  = "REGIONAL"
-  encryption_key = var.service_encryption_keys != null ? try(var.service_encryption_keys[var.regions.primary], null) : null
-  force_destroy  = true
+  encryption_key = try(var.service_encryption_keys[var.regions.primary], null)
+  force_destroy  = !var.deletion_protection
 }

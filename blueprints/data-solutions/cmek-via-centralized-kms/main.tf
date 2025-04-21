@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ module "project-service" {
   name            = var.project_config.project_ids.service
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.billing_account_id != null ? null : {}
   prefix          = var.project_config.billing_account_id == null ? null : var.prefix
   services = [
     "compute.googleapis.com",
@@ -38,12 +38,8 @@ module "project-service" {
     "storage-component.googleapis.com",
   ]
   service_encryption_key_ids = {
-    compute = [
-      local.kms_keys.gce
-    ]
-    storage = [
-      local.kms_keys.gcs
-    ]
+    "compute.googleapis.com" = [local.kms_keys.gce]
+    "storage.googleapis.com" = [local.kms_keys.gcs]
   }
   service_config = {
     disable_on_destroy = false, disable_dependent_services = false
@@ -58,7 +54,7 @@ module "project-kms" {
   name            = var.project_config.project_ids.encryption
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.billing_account_id != null ? null : {}
   prefix          = var.project_config.billing_account_id == null ? null : var.prefix
   services = [
     "cloudkms.googleapis.com",
@@ -163,4 +159,5 @@ module "kms-gcs" {
   location       = var.region
   storage_class  = "REGIONAL"
   encryption_key = local.kms_keys.gcs
+  force_destroy  = !var.deletion_protection
 }

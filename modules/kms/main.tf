@@ -17,8 +17,8 @@
 locals {
   keyring = (
     var.keyring_create
-    ? google_kms_key_ring.default.0
-    : data.google_kms_key_ring.default.0
+    ? google_kms_key_ring.default[0]
+    : data.google_kms_key_ring.default[0]
   )
 }
 
@@ -40,6 +40,7 @@ resource "google_kms_crypto_key" "default" {
   for_each                      = var.keys
   key_ring                      = local.keyring.id
   name                          = each.key
+  destroy_scheduled_duration    = each.value.destroy_scheduled_duration
   rotation_period               = each.value.rotation_period
   labels                        = each.value.labels
   purpose                       = each.value.purpose
@@ -52,4 +53,12 @@ resource "google_kms_crypto_key" "default" {
       protection_level = each.value.version_template.protection_level
     }
   }
+}
+
+resource "google_kms_key_ring_import_job" "default" {
+  count            = var.import_job != null ? 1 : 0
+  key_ring         = local.keyring.id
+  import_job_id    = var.import_job.id
+  import_method    = var.import_job.import_method
+  protection_level = var.import_job.protection_level
 }

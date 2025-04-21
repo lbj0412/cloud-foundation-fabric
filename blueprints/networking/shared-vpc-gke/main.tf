@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ module "project-svc-gce" {
   }
   shared_vpc_service_config = {
     host_project = module.project-host.project_id
-    service_identity_iam = {
+    service_agent_iam = {
       "roles/compute.networkUser" = ["cloudservices"]
     }
   }
@@ -68,9 +68,9 @@ module "project-svc-gke" {
   services        = var.project_services
   shared_vpc_service_config = {
     host_project = module.project-host.project_id
-    service_identity_iam = {
-      "roles/container.hostServiceAgentUser" = ["container-engine"]
-      "roles/compute.networkUser"            = ["container-engine"]
+    service_agent_iam = {
+      "roles/container.hostServiceAgentUser" = ["container"]
+      "roles/compute.networkUser"            = ["container"]
     }
   }
   iam = merge(
@@ -80,8 +80,8 @@ module "project-svc-gke" {
     },
     var.cluster_create
     ? {
-      "roles/logging.logWriter"       = [module.cluster-1-nodepool-1.0.service_account_iam_email]
-      "roles/monitoring.metricWriter" = [module.cluster-1-nodepool-1.0.service_account_iam_email]
+      "roles/logging.logWriter"       = [module.cluster-1-nodepool-1[0].service_account_iam_email]
+      "roles/monitoring.metricWriter" = [module.cluster-1-nodepool-1[0].service_account_iam_email]
     }
     : {}
   )
@@ -104,7 +104,7 @@ module "vpc-shared" {
       region        = var.region
       iam = {
         "roles/compute.networkUser" = concat(var.owners_gce, [
-          "serviceAccount:${module.project-svc-gce.service_accounts.cloud_services}",
+          module.project-svc-gce.service_agents.cloudservices.iam_email,
         ])
       }
     },
@@ -118,11 +118,11 @@ module "vpc-shared" {
       }
       iam = {
         "roles/compute.networkUser" = concat(var.owners_gke, [
-          "serviceAccount:${module.project-svc-gke.service_accounts.cloud_services}",
-          "serviceAccount:${module.project-svc-gke.service_accounts.robots.container-engine}",
+          module.project-svc-gke.service_agents.cloudservices.iam_email,
+          module.project-svc-gke.service_agents.container-engine.iam_email,
         ])
         "roles/compute.securityAdmin" = [
-          "serviceAccount:${module.project-svc-gke.service_accounts.robots.container-engine}",
+          module.project-svc-gke.service_agents.container-engine.iam_email,
         ]
       }
     }
@@ -207,22 +207,20 @@ module "cluster-1" {
   name       = "cluster-1"
   project_id = module.project-svc-gke.project_id
   location   = "${var.region}-b"
+  access_config = {
+    ip_access = {
+      authorized_ranges = { internal-vms = var.ip_ranges.gce }
+    }
+  }
   vpc_config = {
     network    = module.vpc-shared.self_link
     subnetwork = module.vpc-shared.subnet_self_links["${var.region}/gke"]
-    master_authorized_ranges = {
-      internal-vms = var.ip_ranges.gce
-    }
-    master_ipv4_cidr_block = var.private_service_ranges.cluster-1
   }
   max_pods_per_node = 32
-  private_cluster_config = {
-    enable_private_endpoint = true
-    master_global_access    = true
-  }
   labels = {
     environment = "test"
   }
+  deletion_protection = var.deletion_protection
 }
 
 module "cluster-1-nodepool-1" {
@@ -230,9 +228,9 @@ module "cluster-1-nodepool-1" {
   count        = var.cluster_create ? 1 : 0
   name         = "nodepool-1"
   project_id   = module.project-svc-gke.project_id
-  location     = module.cluster-1.0.location
-  cluster_name = module.cluster-1.0.name
-  cluster_id   = module.cluster-1.0.id
+  location     = module.cluster-1[0].location
+  cluster_name = module.cluster-1[0].name
+  cluster_id   = module.cluster-1[0].id
   service_account = {
     create = true
   }

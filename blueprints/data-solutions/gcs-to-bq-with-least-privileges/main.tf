@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ module "project" {
   name            = var.project_config.project_id
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.billing_account_id != null ? null : {}
   prefix          = var.project_config.billing_account_id == null ? null : var.prefix
   services = [
     "bigquery.googleapis.com",
@@ -91,7 +91,7 @@ module "project" {
   shared_vpc_service_config = var.network_config.host_project == null ? null : {
     attach       = true
     host_project = var.network_config.host_project
-    service_identity_iam = {
+    service_agent_iam = {
       "roles/compute.networkUser" = ["dataflow"]
     }
   }

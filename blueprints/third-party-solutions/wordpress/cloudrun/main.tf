@@ -30,7 +30,7 @@ locals {
     "roles/iam.serviceAccountUser",
     "roles/iam.serviceAccountTokenCreator"
   ]
-  connector = var.connector == null ? google_vpc_access_connector.connector.0.self_link : var.connector
+  connector = var.connector == null ? google_vpc_access_connector.connector[0].self_link : var.connector
   wp_user   = "user"
   wp_pass   = var.wordpress_password == null ? random_password.wp_password.result : var.wordpress_password
 }
@@ -44,7 +44,7 @@ module "project" {
   name            = var.project_id
   parent          = try(var.project_create.parent, null)
   billing_account = try(var.project_create.billing_account_id, null)
-  project_create  = var.project_create != null
+  project_reuse   = var.project_create != null ? null : {}
   prefix          = var.project_create == null ? null : var.prefix
   iam = (
     var.project_create != true || var.admin_principal == null
@@ -63,10 +63,10 @@ module "project" {
     "run.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
-    "sqladmin.googleapis.com",
+    "servicenetworking.googleapis.com",
     "sql-component.googleapis.com",
+    "sqladmin.googleapis.com",
     "vpcaccess.googleapis.com",
-    "servicenetworking.googleapis.com"
   ]
 }
 

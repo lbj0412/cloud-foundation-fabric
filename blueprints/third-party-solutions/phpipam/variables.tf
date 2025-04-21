@@ -52,6 +52,13 @@ variable "custom_domain" {
   default     = null
 }
 
+variable "deletion_protection" {
+  description = "Prevent Terraform from destroying data storage resources (storage buckets, GKE clusters, CloudSQL instances) in this blueprint. When this field is set in Terraform state, a terraform destroy or terraform apply that would delete data storage resources will fail."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "iap" {
   description = "Identity-Aware Proxy for Cloud Run in the LB."
   type = object({
@@ -68,11 +75,13 @@ variable "ip_ranges" {
   description = "CIDR blocks: VPC serverless connector, Private Service Access(PSA) for CloudSQL, CloudSQL VPC."
   type = object({
     connector = string
+    proxy     = string
     psa       = string
     ilb       = string
   })
   default = {
     connector = "10.8.0.0/28"
+    proxy     = "10.10.0.0/26"
     psa       = "10.60.0.0/24"
     ilb       = "10.128.0.0/28"
   }

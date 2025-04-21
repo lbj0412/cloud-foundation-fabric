@@ -17,7 +17,7 @@
 output "bucket" {
   description = "Bucket resource (only if auto-created)."
   value = try(
-    var.bucket_config == null ? null : google_storage_bucket.bucket.0, null
+    var.bucket_config == null ? null : google_storage_bucket.bucket[0], null
   )
 }
 
@@ -39,6 +39,15 @@ output "function_name" {
 output "id" {
   description = "Fully qualified function id."
   value       = google_cloudfunctions2_function.function.id
+}
+
+output "invoke_command" {
+  description = "Command to invoke Cloud Run Function."
+  value       = var.trigger_config != null ? null : <<-EOT
+    curl -H "Authorization: bearer $(gcloud auth print-identity-token)" \
+        ${google_cloudfunctions2_function.function.service_config[0].uri} \
+        -X POST -d 'data'
+  EOT
 }
 
 output "service_account" {
@@ -84,5 +93,5 @@ output "uri" {
 
 output "vpc_connector" {
   description = "VPC connector resource if created."
-  value       = try(google_vpc_access_connector.connector.0.id, null)
+  value       = try(google_vpc_access_connector.connector[0].id, null)
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2025 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,18 @@
  * limitations under the License.
  */
 
+variable "autoclass" {
+  description = "Enable autoclass to automatically transition objects to appropriate storage classes based on their access pattern. If set to true, storage_class must be set to STANDARD. Defaults to false."
+  type        = bool
+  default     = null
+}
+
+variable "bucket_create" {
+  description = "Create bucket."
+  type        = bool
+  default     = true
+}
+
 variable "cors" {
   description = "CORS configuration for the bucket. Defaults to null."
   type = object({
@@ -23,6 +35,30 @@ variable "cors" {
     max_age_seconds = optional(number)
   })
   default = null
+}
+
+variable "custom_placement_config" {
+  type        = list(string)
+  default     = null
+  description = "The bucket's custom location configuration, which specifies the individual regions that comprise a dual-region bucket. If the bucket is designated as REGIONAL or MULTI_REGIONAL, the parameters are empty."
+}
+
+variable "default_event_based_hold" {
+  description = "Enable event based hold to new objects added to specific bucket, defaults to false."
+  type        = bool
+  default     = null
+}
+
+variable "enable_hierarchical_namespace" {
+  description = "Enables hierarchical namespace."
+  type        = bool
+  default     = null
+}
+
+variable "enable_object_retention" {
+  description = "Enables object retention on a storage bucket."
+  type        = bool
+  default     = null
 }
 
 variable "encryption_key" {
@@ -41,6 +77,43 @@ variable "iam" {
   description = "IAM bindings in {ROLE => [MEMBERS]} format."
   type        = map(list(string))
   default     = {}
+}
+
+variable "iam_bindings" {
+  description = "Authoritative IAM bindings in {KEY => {role = ROLE, members = [], condition = {}}}. Keys are arbitrary."
+  type = map(object({
+    members = list(string)
+    role    = string
+    condition = optional(object({
+      expression  = string
+      title       = string
+      description = optional(string)
+    }))
+  }))
+  nullable = false
+  default  = {}
+}
+
+variable "iam_bindings_additive" {
+  description = "Individual additive IAM bindings. Keys are arbitrary."
+  type = map(object({
+    member = string
+    role   = string
+    condition = optional(object({
+      expression  = string
+      title       = string
+      description = optional(string)
+    }))
+  }))
+  nullable = false
+  default  = {}
+}
+
+variable "iam_by_principals" {
+  description = "Authoritative IAM binding in {PRINCIPAL => [ROLES]} format. Principals need to be statically defined to avoid cycle errors. Merged internally with the `iam` variable."
+  type        = map(list(string))
+  default     = {}
+  nullable    = false
 }
 
 variable "labels" {
@@ -101,7 +174,11 @@ variable "lifecycle_rules" {
 variable "location" {
   description = "Bucket location."
   type        = string
-  default     = "EU"
+  default     = null
+  validation {
+    condition     = ((var.bucket_create == true) == (var.location != null))
+    error_message = "Bucket location is required if and only if bucket_create is true."
+  }
 }
 
 variable "logging_config" {
@@ -113,6 +190,34 @@ variable "logging_config" {
   default = null
 }
 
+variable "managed_folders" {
+  description = "Managed folders to create within the bucket in {PATH => CONFIG} format."
+  type = map(object({
+    force_destroy = optional(bool, false)
+    iam           = optional(map(list(string)), {})
+    iam_bindings = optional(map(object({
+      members = list(string)
+      role    = string
+      condition = optional(object({
+        expression  = string
+        title       = string
+        description = optional(string)
+      }))
+    })), {})
+    iam_bindings_additive = optional(map(object({
+      member = string
+      role   = string
+      condition = optional(object({
+        expression  = string
+        title       = string
+        description = optional(string)
+      }))
+    })), {})
+  }))
+  default  = {}
+  nullable = false
+}
+
 variable "name" {
   description = "Bucket name suffix."
   type        = string
@@ -121,10 +226,13 @@ variable "name" {
 variable "notification_config" {
   description = "GCS Notification configuration."
   type = object({
-    enabled            = bool
-    payload_format     = string
-    topic_name         = string
-    sa_email           = string
+    enabled        = bool
+    payload_format = string
+    sa_email       = string
+    topic_name     = string
+    create_topic = optional(object({
+      kms_key_id = optional(string)
+    }), {})
     event_types        = optional(list(string))
     custom_attributes  = optional(map(string))
     object_name_prefix = optional(string)
@@ -173,6 +281,22 @@ variable "project_id" {
   type        = string
 }
 
+variable "public_access_prevention" {
+  description = "Prevents public access to the bucket."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.public_access_prevention == null || contains(["enforced", "inherited"], coalesce(var.public_access_prevention, "none"))
+    error_message = "public_access_prevention must be either enforced or inherited."
+  }
+}
+
+variable "requester_pays" {
+  description = "Enables Requester Pays on a storage bucket."
+  type        = bool
+  default     = null
+}
+
 variable "retention_policy" {
   description = "Bucket retention policy."
   type = object({
@@ -182,14 +306,37 @@ variable "retention_policy" {
   default = null
 }
 
+variable "rpo" {
+  description = "Bucket recovery point objective."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.rpo == null || contains(["ASYNC_TURBO", "DEFAULT"], coalesce(var.rpo, "none"))
+    error_message = "rpo must be one of ASYNC_TURBO, DEFAULT."
+  }
+}
+
+variable "soft_delete_retention" {
+  description = "The duration in seconds that soft-deleted objects in the bucket will be retained and cannot be permanently deleted. Set to 0 to override the default and disable."
+  type        = number
+  default     = null
+}
+
 variable "storage_class" {
   description = "Bucket storage class."
   type        = string
-  default     = "MULTI_REGIONAL"
+  default     = "STANDARD"
   validation {
     condition     = contains(["STANDARD", "MULTI_REGIONAL", "REGIONAL", "NEARLINE", "COLDLINE", "ARCHIVE"], var.storage_class)
     error_message = "Storage class must be one of STANDARD, MULTI_REGIONAL, REGIONAL, NEARLINE, COLDLINE, ARCHIVE."
   }
+}
+
+variable "tag_bindings" {
+  description = "Tag bindings for this folder, in key => tag value id format."
+  type        = map(string)
+  nullable    = false
+  default     = {}
 }
 
 variable "uniform_bucket_level_access" {
@@ -201,7 +348,7 @@ variable "uniform_bucket_level_access" {
 variable "versioning" {
   description = "Enable versioning, defaults to false."
   type        = bool
-  default     = false
+  default     = null
 }
 
 variable "website" {

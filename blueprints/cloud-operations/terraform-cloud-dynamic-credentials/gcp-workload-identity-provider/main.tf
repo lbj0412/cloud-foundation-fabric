@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 module "project" {
   source          = "../../../../modules/project"
   name            = var.project_id
-  project_create  = var.project_create
+  project_reuse   = var.project_create ? null : {}
   parent          = var.parent
   billing_account = var.billing_account
   services = [
@@ -86,7 +86,7 @@ module "sa-tfc" {
   }
 
   iam_project_roles = {
-    "${module.project.project_id}" = [
+    (module.project.project_id) = [
       "roles/storage.admin"
     ]
   }

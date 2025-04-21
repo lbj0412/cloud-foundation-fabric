@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ module "transf-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.project_create ? null : {}
   prefix          = local.use_projects ? null : var.prefix
   name = (
     local.use_projects
@@ -63,8 +63,8 @@ module "transf-project" {
     "storage-component.googleapis.com"
   ])
   service_encryption_key_ids = {
-    dataflow = [try(local.service_encryption_keys.dataflow, null)]
-    storage  = [try(local.service_encryption_keys.storage, null)]
+    "dataflow.googleapis.com" = compact([var.service_encryption_keys.dataflow])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
   shared_vpc_service_config = local.shared_vpc_project == null ? null : {
     attach       = true
@@ -96,7 +96,8 @@ module "transf-cs-df-0" {
   name           = "trf-cs-0"
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
-  encryption_key = try(local.service_encryption_keys.storage, null)
+  encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 module "transf-sa-bq-0" {
@@ -134,7 +135,7 @@ module "transf-vpc-firewall" {
   source     = "../../../modules/net-vpc-firewall"
   count      = local.use_shared_vpc ? 0 : 1
   project_id = module.transf-project.project_id
-  network    = module.transf-vpc.0.name
+  network    = module.transf-vpc[0].name
   default_rules_config = {
     admin_ranges = ["10.10.0.0/24"]
   }
@@ -146,5 +147,5 @@ module "transf-nat" {
   project_id     = module.transf-project.project_id
   name           = "${var.prefix}-trf"
   region         = var.region
-  router_network = module.transf-vpc.0.name
+  router_network = module.transf-vpc[0].name
 }

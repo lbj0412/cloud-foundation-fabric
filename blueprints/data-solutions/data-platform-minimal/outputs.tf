@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ output "bigquery-datasets" {
 output "composer" {
   description = "Composer variables."
   value = {
-    air_flow_uri = try(google_composer_environment.processing-cmp-0[0].config.0.airflow_uri, null)
+    air_flow_uri = try(google_composer_environment.processing-cmp-0[0].config[0].airflow_uri, null)
     dag_bucket   = try(regex("^gs://([^/]*)/dags$", google_composer_environment.processing-cmp-0[0].config[0].dag_gcs_prefix)[0], null)
   }
 }

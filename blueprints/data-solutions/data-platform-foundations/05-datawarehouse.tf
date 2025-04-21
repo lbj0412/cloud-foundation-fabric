@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ locals {
     data_analysts = [
       "roles/bigquery.dataViewer",
       "roles/bigquery.jobUser",
+      "roles/datacatalog.tagTemplateViewer",
       "roles/datacatalog.viewer",
       "roles/storage.objectViewer"
     ]
     data_engineers = [
       "roles/bigquery.dataViewer",
       "roles/bigquery.jobUser",
+      "roles/datacatalog.tagTemplateViewer",
       "roles/datacatalog.viewer",
       "roles/storage.objectViewer"
     ]
@@ -41,10 +43,13 @@ locals {
     data_engineers = [
       "roles/bigquery.dataViewer",
       "roles/bigquery.jobUser",
+      "roles/datacatalog.tagTemplateViewer",
       "roles/datacatalog.viewer",
       "roles/storage.objectViewer"
     ]
     sa_load = [
+      "roles/bigquery.dataOwner",
+      "roles/bigquery.jobUser",
       "roles/storage.objectCreator"
     ]
     sa_transf_bq = [
@@ -52,9 +57,7 @@ locals {
       "roles/datacatalog.categoryAdmin"
     ]
     sa_transf_df = [
-      "roles/bigquery.dataOwner",
-      "roles/bigquery.dataViewer",
-      "roles/bigquery.jobUser"
+      "roles/bigquery.dataViewer"
     ]
   }
 }
@@ -65,7 +68,7 @@ module "dwh-lnd-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.project_create ? null : {}
   prefix          = local.use_projects ? null : var.prefix
   name = (
     local.use_projects
@@ -76,8 +79,8 @@ module "dwh-lnd-project" {
   iam_bindings_additive = !local.use_projects ? {} : local.lnd_iam_additive
   services              = local.dwh_services
   service_encryption_key_ids = {
-    bq      = [try(local.service_encryption_keys.bq, null)]
-    storage = [try(local.service_encryption_keys.storage, null)]
+    "bigquery.googleapis.com" = compact([var.service_encryption_keys.bq])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
 }
 
@@ -85,7 +88,7 @@ module "dwh-cur-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.project_create ? null : {}
   prefix          = local.use_projects ? null : var.prefix
   name = (
     local.use_projects
@@ -96,8 +99,8 @@ module "dwh-cur-project" {
   iam_bindings_additive = !local.use_projects ? {} : local.dwh_iam_additive
   services              = local.dwh_services
   service_encryption_key_ids = {
-    bq      = [try(local.service_encryption_keys.bq, null)]
-    storage = [try(local.service_encryption_keys.storage, null)]
+    "bigquery.googleapis.com" = compact([var.service_encryption_keys.bq])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
 }
 
@@ -105,7 +108,7 @@ module "dwh-conf-project" {
   source          = "../../../modules/project"
   parent          = var.project_config.parent
   billing_account = var.project_config.billing_account_id
-  project_create  = var.project_config.billing_account_id != null
+  project_reuse   = var.project_config.project_create ? null : {}
   prefix          = local.use_projects ? null : var.prefix
   name = (
     local.use_projects
@@ -116,8 +119,8 @@ module "dwh-conf-project" {
   iam_bindings_additive = !local.use_projects ? {} : local.dwh_iam_additive
   services              = local.dwh_services
   service_encryption_key_ids = {
-    bq      = [try(local.service_encryption_keys.bq, null)]
-    storage = [try(local.service_encryption_keys.storage, null)]
+    "bigquery.googleapis.com" = compact([var.service_encryption_keys.bq])
+    "storage.googleapis.com"  = compact([var.service_encryption_keys.storage])
   }
 }
 
@@ -126,7 +129,7 @@ module "dwh-lnd-bq-0" {
   project_id     = module.dwh-lnd-project.project_id
   id             = "${replace(var.prefix, "-", "_")}_dwh_lnd_bq_0"
   location       = var.location
-  encryption_key = try(local.service_encryption_keys.bq, null)
+  encryption_key = var.service_encryption_keys.bq
 }
 
 module "dwh-cur-bq-0" {
@@ -134,7 +137,7 @@ module "dwh-cur-bq-0" {
   project_id     = module.dwh-cur-project.project_id
   id             = "${replace(var.prefix, "-", "_")}_dwh_cur_bq_0"
   location       = var.location
-  encryption_key = try(local.service_encryption_keys.bq, null)
+  encryption_key = var.service_encryption_keys.bq
 }
 
 module "dwh-conf-bq-0" {
@@ -142,7 +145,7 @@ module "dwh-conf-bq-0" {
   project_id     = module.dwh-conf-project.project_id
   id             = "${replace(var.prefix, "-", "_")}_dwh_conf_bq_0"
   location       = var.location
-  encryption_key = try(local.service_encryption_keys.bq, null)
+  encryption_key = var.service_encryption_keys.bq
 }
 
 module "dwh-lnd-cs-0" {
@@ -152,8 +155,8 @@ module "dwh-lnd-cs-0" {
   name           = "dwh-lnd-cs-0"
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
-  encryption_key = try(local.service_encryption_keys.storage, null)
-  force_destroy  = var.data_force_destroy
+  encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 module "dwh-cur-cs-0" {
@@ -163,8 +166,8 @@ module "dwh-cur-cs-0" {
   name           = "dwh-cur-cs-0"
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
-  encryption_key = try(local.service_encryption_keys.storage, null)
-  force_destroy  = var.data_force_destroy
+  encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 module "dwh-conf-cs-0" {
@@ -174,6 +177,6 @@ module "dwh-conf-cs-0" {
   name           = "dwh-conf-cs-0"
   location       = var.location
   storage_class  = "MULTI_REGIONAL"
-  encryption_key = try(local.service_encryption_keys.storage, null)
-  force_destroy  = var.data_force_destroy
+  encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }

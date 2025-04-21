@@ -16,8 +16,8 @@
 
 locals {
   managed_zone = (var.zone_config == null ?
-    data.google_dns_managed_zone.dns_managed_zone.0
-    : google_dns_managed_zone.dns_managed_zone.0
+    data.google_dns_managed_zone.dns_managed_zone[0]
+    : google_dns_managed_zone.dns_managed_zone[0]
   )
   # split record name and type and set as keys in a map
   _recordsets_0 = {
@@ -61,8 +61,9 @@ resource "google_dns_managed_zone" "dns_managed_zone" {
   name           = var.name
   dns_name       = var.zone_config.domain
   description    = var.description
+  force_destroy  = var.force_destroy
   visibility     = local.visibility
-  reverse_lookup = try(var.zone_config.private, null) != null && endswith(var.zone_config.domain, ".in-addr.arpa.")
+  reverse_lookup = var.zone_config.private == null ? false : var.zone_config.private.reverse_managed
 
   dynamic "dnssec_config" {
     for_each = try(var.zone_config.public.dnssec_config, null) == null ? [] : [""]
@@ -158,7 +159,12 @@ resource "google_dns_managed_zone_iam_binding" "iam_bindings" {
 }
 
 data "google_dns_keys" "dns_keys" {
+  count        = try(var.zone_config.public.dnssec_config.state, "off") != "off" ? 1 : 0
   managed_zone = local.managed_zone.id
+  project      = var.project_id
+  depends_on = [
+    google_dns_managed_zone.dns_managed_zone
+  ]
 }
 
 resource "google_dns_record_set" "dns_record_set" {
@@ -178,6 +184,23 @@ resource "google_dns_record_set" "dns_record_set" {
         content {
           location = geo.value.location
           rrdatas  = geo.value.records
+          dynamic "health_checked_targets" {
+            for_each = try(geo.value.health_checked_targets, null) == null ? [] : [""]
+            content {
+              dynamic "internal_load_balancers" {
+                for_each = geo.value.health_checked_targets
+                content {
+                  load_balancer_type = internal_load_balancers.value.load_balancer_type
+                  ip_address         = internal_load_balancers.value.ip_address
+                  port               = internal_load_balancers.value.port
+                  ip_protocol        = internal_load_balancers.value.ip_protocol
+                  network_url        = internal_load_balancers.value.network_url
+                  project            = internal_load_balancers.value.project
+                  region             = internal_load_balancers.value.region
+                }
+              }
+            }
+          }
         }
       }
       dynamic "wrr" {

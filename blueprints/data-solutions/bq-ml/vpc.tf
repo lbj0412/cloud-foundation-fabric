@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ module "vpc-firewall" {
   source     = "../../../modules/net-vpc-firewall"
   count      = local.use_shared_vpc ? 0 : 1
   project_id = module.project.project_id
-  network    = module.vpc.0.name
+  network    = module.vpc[0].name
   default_rules_config = {
     admin_ranges = ["10.0.0.0/20"]
   }
@@ -53,12 +53,12 @@ module "cloudnat" {
   project_id     = module.project.project_id
   name           = "${var.prefix}-default"
   region         = var.region
-  router_network = module.vpc.0.name
+  router_network = module.vpc[0].name
 }
 
 resource "google_project_iam_member" "shared_vpc" {
   count   = local.use_shared_vpc ? 1 : 0
   project = var.vpc_config.host_project
   role    = "roles/compute.networkUser"
-  member  = "serviceAccount:${module.project.service_accounts.robots.notebooks}"
+  member  = module.project.service_agents.notebooks.iam_email
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2025 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,24 +22,23 @@ locals {
     "roles/billing.creator"
   ]
   # domain IAM bindings
-  iam_domain_bindings = {
+  iam_domain_bindings = var.organization.domain == null ? {} : {
     "domain:${var.organization.domain}" = {
       authoritative = ["roles/browser"]
       additive      = []
     }
   }
   # human (groups) IAM bindings
-  iam_group_bindings = {
-    (local.groups.gcp-billing-admins) = {
+  iam_principal_bindings = {
+    (local.principals.gcp-billing-admins) = {
       authoritative = []
       additive = (
         local.billing_mode != "org" ? [] : [
-          "roles/billing.admin",
-          "roles/billing.costsManager"
+          "roles/billing.admin"
         ]
       )
     }
-    (local.groups.gcp-network-admins) = {
+    (local.principals.gcp-network-admins) = {
       authoritative = [
         "roles/cloudasset.owner",
         "roles/cloudsupport.techSupportEditor",
@@ -49,7 +48,7 @@ locals {
         "roles/compute.xpnAdmin"
       ]
     }
-    (local.groups.gcp-organization-admins) = {
+    (local.principals.gcp-organization-admins) = {
       authoritative = [
         "roles/cloudasset.owner",
         "roles/cloudsupport.admin",
@@ -59,19 +58,19 @@ locals {
         "roles/resourcemanager.folderAdmin",
         "roles/resourcemanager.organizationAdmin",
         "roles/resourcemanager.projectCreator",
-        "roles/resourcemanager.tagAdmin"
+        "roles/resourcemanager.tagAdmin",
+        "roles/iam.workforcePoolAdmin"
       ]
       additive = concat(
         [
           "roles/orgpolicy.policyAdmin"
         ],
         local.billing_mode != "org" ? [] : [
-          "roles/billing.admin",
-          "roles/billing.costsManager"
+          "roles/billing.admin"
         ]
       )
     }
-    (local.groups.gcp-security-admins) = {
+    (local.principals.gcp-security-admins) = {
       authoritative = [
         "roles/cloudasset.owner",
         "roles/cloudsupport.techSupportEditor",
@@ -85,7 +84,7 @@ locals {
         "roles/orgpolicy.policyAdmin"
       ]
     }
-    (local.groups.gcp-support) = {
+    (local.principals.gcp-support) = {
       authoritative = [
         "roles/cloudsupport.techSupportEditor",
         "roles/logging.viewer",
@@ -99,6 +98,8 @@ locals {
   iam_sa_bindings = {
     (module.automation-tf-bootstrap-sa.iam_email) = {
       authoritative = [
+        "roles/essentialcontacts.admin",
+        "roles/iam.workforcePoolAdmin",
         "roles/logging.admin",
         "roles/resourcemanager.organizationAdmin",
         "roles/resourcemanager.projectCreator",
@@ -111,13 +112,32 @@ locals {
           "roles/orgpolicy.policyAdmin"
         ],
         local.billing_mode != "org" ? [] : [
-          "roles/billing.admin",
-          "roles/billing.costsManager"
+          "roles/billing.admin"
+        ]
+      )
+    }
+    (module.automation-tf-bootstrap-r-sa.iam_email) = {
+      authoritative = [
+        "roles/essentialcontacts.viewer",
+        "roles/logging.viewer",
+        "roles/resourcemanager.folderViewer",
+        "roles/resourcemanager.tagViewer"
+      ]
+      additive = concat(
+        [
+          # the organizationAdminViewer custom role is granted via the SA module
+          "roles/iam.organizationRoleViewer",
+          "roles/iam.workforcePoolViewer",
+          "roles/orgpolicy.policyViewer"
+        ],
+        local.billing_mode != "org" ? [] : [
+          "roles/billing.viewer"
         ]
       )
     }
     (module.automation-tf-resman-sa.iam_email) = {
       authoritative = [
+        "roles/essentialcontacts.admin",
         "roles/logging.admin",
         "roles/resourcemanager.folderAdmin",
         "roles/resourcemanager.projectCreator",
@@ -126,28 +146,68 @@ locals {
       ]
       additive = concat(
         [
+          "roles/accesscontextmanager.policyAdmin",
           "roles/orgpolicy.policyAdmin"
         ],
         local.billing_mode != "org" ? [] : [
-          "roles/billing.admin",
-          "roles/billing.costsManager"
+          "roles/billing.admin"
         ]
       )
     }
+    (module.automation-tf-resman-r-sa.iam_email) = {
+      authoritative = [
+        "roles/essentialcontacts.viewer",
+        "roles/logging.viewer",
+        "roles/resourcemanager.folderViewer",
+        "roles/resourcemanager.tagViewer",
+        "roles/serviceusage.serviceUsageViewer"
+      ]
+      additive = concat(
+        [
+          "roles/accesscontextmanager.policyReader",
+          # the organizationAdminViewer custom role is granted via the SA module
+          "roles/orgpolicy.policyViewer"
+        ],
+        local.billing_mode != "org" ? [] : [
+          "roles/billing.viewer"
+        ]
+      )
+    }
+    (module.automation-tf-vpcsc-sa.iam_email) = {
+      authoritative = []
+      additive = [
+        "roles/accesscontextmanager.policyAdmin",
+        "roles/cloudasset.viewer"
+      ]
+    }
+    (module.automation-tf-vpcsc-r-sa.iam_email) = {
+      authoritative = []
+      additive = [
+        "roles/accesscontextmanager.policyReader",
+        "roles/cloudasset.viewer"
+      ]
+    }
   }
+  # Check if boostrap_user comes from WIF
+  bootstrap_principal = var.bootstrap_user == null ? null : (
+    strcontains(var.bootstrap_user, ":")
+    ? var.bootstrap_user
+    : "user:${var.bootstrap_user}"
+  )
+
   # bootstrap user bindings
   iam_user_bootstrap_bindings = var.bootstrap_user == null ? {} : {
-    "user:${var.bootstrap_user}" = {
+    (local.bootstrap_principal) = {
       authoritative = [
         "roles/logging.admin",
         "roles/owner",
         "roles/resourcemanager.organizationAdmin",
-        "roles/resourcemanager.projectCreator"
+        "roles/resourcemanager.projectCreator",
+        "roles/resourcemanager.tagAdmin"
       ]
       additive = (
         local.billing_mode != "org" ? [] : [
-          "roles/billing.admin",
-          "roles/billing.costsManager"
+          "roles/billing.admin"
         ]
       )
     }

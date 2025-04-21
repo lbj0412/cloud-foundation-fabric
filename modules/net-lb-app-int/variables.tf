@@ -45,6 +45,16 @@ variable "group_configs" {
   nullable = false
 }
 
+variable "https_proxy_config" {
+  description = "HTTPS proxy configuration."
+  type = object({
+    certificate_manager_certificates = optional(list(string))
+    ssl_policy                       = optional(string)
+  })
+  default  = {}
+  nullable = false
+}
+
 variable "labels" {
   description = "Labels set on resources."
   type        = map(string)
@@ -59,7 +69,8 @@ variable "name" {
 variable "neg_configs" {
   description = "Optional network endpoint groups to create. Can be referenced in backends via key or outputs."
   type = map(object({
-    project_id = optional(string)
+    project_id  = optional(string)
+    description = optional(string)
     cloudrun = optional(object({
       region = string
       target_service = optional(object({
@@ -90,6 +101,16 @@ variable "neg_configs" {
         port       = number
       })))
     }))
+    internet = optional(object({
+      region   = string
+      use_fqdn = optional(bool, true)
+      # re-enable once provider properly support this
+      # default_port = optional(number)
+      endpoints = optional(map(object({
+        destination = string
+        port        = number
+      })))
+    }))
     psc = optional(object({
       region         = string
       target_service = string
@@ -105,6 +126,7 @@ variable "neg_configs" {
         (try(v.cloudrun, null) == null ? 0 : 1) +
         (try(v.gce, null) == null ? 0 : 1) +
         (try(v.hybrid, null) == null ? 0 : 1) +
+        (try(v.internet, null) == null ? 0 : 1) +
         (try(v.psc, null) == null ? 0 : 1) == 1
       )
     ])
@@ -130,9 +152,13 @@ variable "network_tier_premium" {
 }
 
 variable "ports" {
-  description = "Optional ports for HTTP load balancer, valid ports are 80 and 8080."
+  description = "Optional ports for HTTP load balancer."
   type        = list(string)
   default     = null
+  validation {
+    condition     = length(coalesce(var.ports, [])) <= 1
+    error_message = "Application Load Balancer supports at most one port per forwarding rule."
+  }
 }
 
 variable "project_id" {
@@ -156,6 +182,21 @@ variable "protocol" {
 variable "region" {
   description = "The region where to allocate the ILB resources."
   type        = string
+}
+
+variable "service_attachment" {
+  description = "PSC service attachment."
+  type = object({
+    nat_subnets           = list(string)
+    automatic_connection  = optional(bool, false)
+    consumer_accept_lists = optional(map(string), {})
+    consumer_reject_lists = optional(list(string))
+    description           = optional(string)
+    domain_name           = optional(string)
+    enable_proxy_protocol = optional(bool, false)
+    reconcile_connections = optional(bool)
+  })
+  default = null
 }
 
 variable "service_directory_registration" {

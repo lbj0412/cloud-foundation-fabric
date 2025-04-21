@@ -15,12 +15,11 @@
  */
 
 locals {
+  _custom_constraints_factory_path = pathexpand(coalesce(var.factories_config.org_policy_custom_constraints, "-"))
   _custom_constraints_factory_data_raw = merge([
-    for f in try(fileset(var.org_policy_custom_constraints_data_path, "*.yaml"), []) :
-    yamldecode(file("${var.org_policy_custom_constraints_data_path}/${f}"))
+    for f in try(fileset(local._custom_constraints_factory_path, "*.yaml"), []) :
+    yamldecode(file("${local._custom_constraints_factory_path}/${f}"))
   ]...)
-
-
   _custom_constraints_factory_data = {
     for k, v in local._custom_constraints_factory_data_raw :
     k => {
@@ -32,9 +31,10 @@ locals {
       resource_types = v.resource_types
     }
   }
-
-  _custom_constraints = merge(local._custom_constraints_factory_data, var.org_policy_custom_constraints)
-
+  _custom_constraints = merge(
+    local._custom_constraints_factory_data,
+    var.org_policy_custom_constraints
+  )
   custom_constraints = {
     for k, v in local._custom_constraints :
     k => merge(v, {
